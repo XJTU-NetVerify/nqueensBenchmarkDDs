@@ -12,6 +12,8 @@ import csv
 from pathlib import Path
 
 try:
+    import matplotlib
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.colors import to_rgb
 except ImportError as exc:
@@ -31,13 +33,15 @@ def read_rows(csv_path):
         row["size"] = int(row["size"])
         row["time_sec"] = float(row["time_sec"])
         row["max_rss_kb"] = int(row["max_rss_kb"])
-        row["nodes_created"] = int(row["nodes_created"])
-        row["nodes_alive"] = int(row["nodes_alive"])
-        row["ndd_nodes_created"] = int(row.get("ndd_nodes_created", 0) or 0)
-        row["ndd_nodes_alive"] = int(row.get("ndd_nodes_alive", 0) or 0)
-        row["bdd_nodes_created"] = int(row.get("bdd_nodes_created", row["nodes_created"]) or row["nodes_created"])
-        row["bdd_nodes_alive"] = int(row.get("bdd_nodes_alive", row["nodes_alive"]) or row["nodes_alive"])
-        row["solutions"] = float(row["solutions"])
+        for metric in ("nodes_created", "nodes_alive"):
+            value = row.get(metric)
+            row[metric] = int(value) if value not in (None, "") else None
+            for prefix, fallback in (("ndd_", 0 if row[metric] is not None else None),
+                                     ("bdd_", row[metric])):
+                key = prefix + metric
+                value = row.get(key, fallback)
+                row[key] = int(value) if value not in (None, "") else None
+        row["solutions"] = float(row["solutions"]) if row.get("solutions") else None
     return rows
 
 
@@ -138,7 +142,7 @@ def lighten_color(color, amount):
 
 
 def plot_metric(rows, metric, ylabel, output_dir, use_log_scale=False):
-    rows = filter_rows(rows)
+    rows = [r for r in filter_rows(rows) if r[metric] is not None]
     plt.figure(figsize=(10, 5))
     implementations = sorted(set(r["implementation"] for r in rows))
     sizes = sorted(set(r["size"] for r in rows))
@@ -153,7 +157,11 @@ def plot_metric(rows, metric, ylabel, output_dir, use_log_scale=False):
     plt.ylabel(ylabel)
     plt.title(f"N-Queens {ylabel}")
     plt.grid(True, linestyle="--", alpha=0.4)
-    plt.legend()
+    if rows:
+        plt.legend()
+    else:
+        plt.text(0.5, 0.5, "Metric unavailable from upstream APIs",
+                 ha="center", va="center", transform=plt.gca().transAxes)
     suffix = "_log" if use_log_scale else ""
     output_path = output_dir / f"nqueens_{metric}{suffix}.png"
     plt.tight_layout()

@@ -1,0 +1,17 @@
+{
+  "versions": {
+    "Augists-NDD": "96b2628c1f6b666ad5835e9ad33c743428207f85",
+    "upstream-ndd-original": "943476cb4df17d593b28ac7703c0a5d886df847a"
+  },
+  "size": 13,
+  "timeout_sec": 100,
+  "trials_per_version": 3,
+  "jvm_options": [
+    "-Xms128m",
+    "-Xmx12g"
+  ],
+  "java_version": "openjdk version \"17.0.20.1\" 2026-08-18\nOpenJDK Runtime Environment (build 17.0.20.1+1-1-22.04-Ubuntu)\nOpenJDK 64-Bit Server VM (build 17.0.20.1+1-1-22.04-Ubuntu, mixed mode, sharing)\n",
+  "timing": "initialization + constraint construction + solution counting; no explicit final GC",
+  "rss_sampling_interval_sec": 0.05,
+  "order": "alternating, fresh JVM for each trial"
+}

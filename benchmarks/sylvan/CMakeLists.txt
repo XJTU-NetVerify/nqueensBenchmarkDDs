@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.17)
+project(nqueens_adapter LANGUAGES C CXX)
+add_subdirectory("${UPSTREAM_ROOT}" library)
+add_executable(nqueens nqueens.c)
+target_link_libraries(nqueens PRIVATE sylvan::sylvan)

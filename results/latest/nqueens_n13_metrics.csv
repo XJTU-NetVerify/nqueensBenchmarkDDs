@@ -1,0 +1,2 @@
+implementation,language,size,time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
+NDD-latest,Java,13,22.585247,2350188,9378160,146060,9355909,145603,22251,457,73712.0

@@ -11,8 +11,8 @@
 ### Task 1: Pin The Expected External Behavior
 
 **Files:**
-- Modify: `NDD-SoA/src/test/java/org/ants/jndd/diagram/NDDLabelModeTest.java`
-- Modify: `NDD-SoA/src/test/java/application/nqueen/NDDSolutionTest.java`
+- Modify: `deprecated/NDD-SoA/src/test/java/org/ants/jndd/diagram/NDDLabelModeTest.java`
+- Modify: `deprecated/NDD-SoA/src/test/java/application/nqueen/NDDSolutionTest.java`
 - Modify: `tests/test_run_nqueens_benchmarks.py`
 
 **Step 1: Add a failing BCDD label-mode test**
@@ -36,7 +36,7 @@ Cover:
 ### Task 2: Add A Local Complement-aware BDD Manager
 
 **Files:**
-- Create: `NDD-SoA/src/main/java/org/ants/jndd/bdd/ComplementedBDD.java`
+- Create: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/bdd/ComplementedBDD.java`
 
 **Step 1: Implement complemented-handle encoding**
 
@@ -62,7 +62,7 @@ Cache:
 ### Task 3: Wire BCDD Into NDD
 
 **Files:**
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
 
 **Step 1: Add a new label mode**
 
@@ -85,8 +85,8 @@ For the first cut:
 ### Task 4: Add The N-Queens Entry Point
 
 **Files:**
-- Create: `NDD-SoA/src/main/java/application/nqueen/ComplementedBddNDDSolution.java`
-- Modify: `NDD-SoA/src/main/java/application/nqueen/NDDSolution.java`
+- Create: `deprecated/NDD-SoA/src/main/java/application/nqueen/ComplementedBddNDDSolution.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/application/nqueen/NDDSolution.java`
 
 **Step 1: Expose the new mode**
 

@@ -6,15 +6,15 @@
 
 **Architecture:** The current NDD design treats each edge label as a Boolean function over the bits of one field. That representation is tightly coupled to JDD's BDD semantics, including complement, sat-count over assignments, and structural traversal. A direct swap to JDD's ZDD manager is therefore unsafe. The recommended architecture is to keep the existing BDD-backed NDD unchanged and add an alternative ZDD-backed edge-label mode only for workloads where each edge label denotes a sparse family of explicit value assignments for that field.
 
-**Tech Stack:** Java, NDD-SoA/NDD-reuse, JDD `jdd.bdd.BDD`, JDD `jdd.zdd.ZDD`.
+**Tech Stack:** Java, deprecated/NDD-SoA/NDD-reuse, JDD `jdd.bdd.BDD`, JDD `jdd.zdd.ZDD`.
 
 ### Task 1: Freeze The Current Semantic Contract
 
 **Files:**
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/utils/DecomposeBDD.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/utils/DecomposeBDD.java`
 - Modify: `NDD-reuse/src/main/java/org/ants/jndd/diagram/NDD.java`
-- Test: `NDD-SoA/src/test/...` or equivalent new tests
+- Test: `deprecated/NDD-SoA/src/test/...` or equivalent new tests
 
 **Step 1: Write tests that pin current meaning of edge labels**
 
@@ -43,9 +43,9 @@ Expected:
 ### Task 2: Introduce An Edge-Label Abstraction
 
 **Files:**
-- Create: `NDD-SoA/src/main/java/org/ants/jndd/diagram/EdgeLabelManager.java`
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/nodetable/NodeTable.java`
+- Create: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/EdgeLabelManager.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/nodetable/NodeTable.java`
 
 **Step 1: Define the smallest useful interface**
 
@@ -95,8 +95,8 @@ Do not support:
 ### Task 4: Add A Prototype ZDD Label Manager
 
 **Files:**
-- Create: `NDD-SoA/src/main/java/org/ants/jndd/diagram/ZddEdgeLabelManager.java`
-- Create: `NDD-SoA/src/main/java/org/ants/jndd/diagram/FieldUniverse.java`
+- Create: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/ZddEdgeLabelManager.java`
+- Create: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/FieldUniverse.java`
 - Test: new unit tests for set-family semantics
 
 **Step 1: Represent each field value as a cube**
@@ -126,7 +126,7 @@ Use ZDD set counting semantics, not BDD `satCount`.
 ### Task 5: Fork NDD Operations For ZDD Mode
 
 **Files:**
-- Modify: `NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
+- Modify: `deprecated/NDD-SoA/src/main/java/org/ants/jndd/diagram/NDD.java`
 - Test: operation equivalence and negative tests
 
 **Step 1: Keep BDD mode unchanged**

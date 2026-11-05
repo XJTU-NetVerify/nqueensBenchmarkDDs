@@ -3,9 +3,9 @@
 import argparse
 import csv
 import os
-import re
 import shutil
 import shlex
+import signal
 import subprocess
 import sys
 import threading
@@ -15,12 +15,23 @@ from pathlib import Path
 import psutil
 
 ROOT = Path(__file__).resolve().parent.parent
+NDD_SOA_DIR = ROOT / "deprecated" / "NDD-SoA"
 RESULTS_DIR = ROOT / "results"
 JOBS = max(1, os.cpu_count() or 1)
 DEFAULT_SIZES = list(range(8, 13))
 DEFAULT_TIMEOUT_SEC = 500
 JSYLVAN_MEMORY_MB = 2048
-EXCLUDED_DEFAULT_TARGETS = {"NDD-SoA-BCDD", "NDD-SoA-FD-ZDD" , "ZDD"}
+sys.path.insert(0, str(ROOT))
+from benchmarks import build as adapters
+
+NDD_URL = adapters.LOCK["NDD"]["url"]
+NDD_REVISION = adapters.LOCK["NDD"]["revision"]
+DEPRECATED_TARGETS = {
+    "NDD-SoA": "NDD",
+    "NDD-SoA-BCDD": "NDD-BCDD",
+}
+# Retain historical implementations for explicit selection and --targets all.
+EXCLUDED_DEFAULT_TARGETS = set(DEPRECATED_TARGETS) | {"NDD-SoA-FD-ZDD", "ZDD"}
 
 
 class Implementation:
@@ -46,213 +57,50 @@ class Implementation:
 
 
 def run(cmd, cwd=ROOT, env=None):
+    cmd = list(cmd)
+    cmd[0] = shutil.which(str(cmd[0])) or cmd[0]
     print(f"[build] {cwd.relative_to(ROOT) if cwd != ROOT else '.'}$ {' '.join(shlex.quote(str(c)) for c in cmd)}")
     subprocess.run(cmd, cwd=cwd, env=env, check=True)
 
 
-def _read_text_file(path):
-    try:
-        return path.read_text(encoding="utf-8", errors="ignore")
-    except FileNotFoundError:
-        return None
-
-
-def cache_paths_match_current_workspace(cache_file, expected_paths):
-    text = _read_text_file(cache_file)
-    if text is None:
-        return False
-    return all(str(path) in text for path in expected_paths)
-
-
-def heal_stale_path_cache(cache_files, expected_paths, reset_paths):
-    existing_files = [path for path in cache_files if path.exists()]
-    if not existing_files:
-        return False
-    if all(cache_paths_match_current_workspace(path, expected_paths) for path in existing_files):
-        return False
-    for path in reset_paths:
-        if path.is_dir():
-            shutil.rmtree(path)
-        elif path.exists():
-            path.unlink()
-    return True
-
-
 def ensure_buddy():
-    buddy_dir = ROOT / "BuDDy"
-    configure_script = buddy_dir / "configure"
-    config_status = buddy_dir / "config.status"
-    top_makefile = buddy_dir / "Makefile"
-    src_makefile = buddy_dir / "src" / "Makefile"
-    queen_makefile = buddy_dir / "examples" / "queen" / "Makefile"
-    libbdd = buddy_dir / "src" / "libbdd.la"
-    if configure_script.exists() and not os.access(configure_script, os.X_OK):
-        configure_script.chmod(configure_script.stat().st_mode | 0o111)
-    healed = heal_stale_path_cache(
-        [config_status, src_makefile, queen_makefile],
-        [buddy_dir],
-        [config_status, top_makefile, src_makefile, queen_makefile, libbdd],
-    )
-    if healed or not config_status.exists():
-        run(["./configure"], cwd=buddy_dir)
-    if healed or not libbdd.exists():
-        run(["make"], cwd=buddy_dir)
-    # Clean and rebuild the queen example
-    run(["make", "-C", "examples/queen", "clean"], cwd=buddy_dir)
-    run(["make", "-C", "examples/queen", "queen"], cwd=buddy_dir)
+    adapters.prepare("buddy", run, JOBS)
 
 
 def ensure_sylvan():
-    build_dir = ROOT / "sylvan" / "build"
-    heal_stale_path_cache(
-        [build_dir / "CMakeCache.txt"],
-        [ROOT / "sylvan", build_dir],
-        [build_dir],
-    )
-    run([
-        "cmake",
-        "-S", "sylvan",
-        "-B", "sylvan/build",
-        "-DSYLVAN_STATS=ON",
-        "-DBUILD_SHARED_LIBS=OFF",
-        "-DCMAKE_BUILD_TYPE=Release",
-        "-DSYLVAN_USE_MMAP=ON",
-    ])
-    # Clean and rebuild nqueens_fast
-    run(["cmake", "--build", "sylvan/build", "--target", "nqueens_fast", "--clean-first", f"-j{JOBS}"])
-    
+    adapters.prepare("sylvan", run, JOBS)
+
+
 def ensure_cudd():
-    cudd_dir = ROOT / "cudd"
-    lib = cudd_dir / "cudd" / ".libs" / "libcudd.a"
-    config_status = cudd_dir / "config.status"
-    top_makefile = cudd_dir / "Makefile"
-    cudd_makefile = cudd_dir / "cudd" / "Makefile"
-    configure_script = cudd_dir / "configure"
-    if configure_script.exists() and not os.access(configure_script, os.X_OK):
-        configure_script.chmod(configure_script.stat().st_mode | 0o111)
-    healed = heal_stale_path_cache(
-        [config_status, top_makefile, cudd_makefile],
-        [cudd_dir],
-        [config_status, top_makefile, cudd_makefile, lib],
-    )
-    if healed or not config_status.exists():
-        run(["./configure"], cwd=cudd_dir)
-    if healed or not lib.exists():
-        run([
-            "make",
-            f"-j{JOBS}",
-            "ACLOCAL=true",
-            "AUTOMAKE=true",
-            "AUTOCONF=true",
-            "AUTOHEADER=true",
-        ], cwd=cudd_dir)
-    # Clean and rebuild nqueens_bdd
-    exe = ROOT / "cudd" / "bin" / "nqueens_bdd"
-    if exe.exists():
-        exe.unlink()
-    (ROOT / "cudd" / "bin").mkdir(parents=True, exist_ok=True)
-    run([
-        "gcc",
-        "-O3",
-        "-I./cudd",
-        "-I./cudd/cudd",
-        "-I./cudd/mtr",
-        "-I./cudd/st",
-        "-I./cudd/util",
-        "-I./cudd/epd",
-        "-o", "cudd/bin/nqueens_bdd",
-        "cudd/examples/nqueens_bdd.c",
-        "cudd/cudd/.libs/libcudd.a",
-        "-lm",
-    ])
+    adapters.prepare("cudd", run, JOBS)
 
 
 def ensure_jdd():
-    gradlew = ROOT / "jdd" / "gradlew"
-    if gradlew.exists() and not os.access(gradlew, os.X_OK):
-        gradlew.chmod(gradlew.stat().st_mode | 0o111)
-    # Clean and rebuild
-    run(["./gradlew", "--no-daemon", "clean", "classes"], cwd=ROOT / "jdd")
+    adapters.prepare("jdd", run, JOBS)
 
 
 def ensure_jsylvan():
-    env_with_pkg = os.environ.copy()
-    pkg_config = shutil.which("pkg-config")
-    if pkg_config:
-        env_with_pkg["PKG_CONFIG"] = pkg_config
-        env_with_pkg["PKG_CONFIG_EXECUTABLE"] = pkg_config
+    adapters.prepare("jsylvan", run, JOBS)
 
-    native_lib = ROOT / "jsylvan" / "src" / "main" / "resources" / "linux-x64" / "libsylvan-java.so"
-    if not native_lib.exists():
-        build_script = ROOT / "jsylvan" / "src" / "main" / "c" / "sylvan-java" / "build-sylvan.sh"
-        if build_script.exists() and not os.access(build_script, os.X_OK):
-            build_script.chmod(build_script.stat().st_mode | 0o111)
-        run([
-            "./src/main/c/sylvan-java/build-sylvan.sh",
-            "https://github.com/trolando/sylvan.git",
-            "v1.4.1",
-        ], cwd=ROOT / "jsylvan", env=env_with_pkg)
-    # Clean and rebuild
-    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=ROOT / "jsylvan", env=env_with_pkg)
+
+def ensure_ndd_original():
+    adapters.prepare("NDD-original", run, JOBS)
 
 
 def ensure_ndd():
-    jdd_jar = ROOT / "NDD" / "lib" / "jdd-111.jar"
-    if not jdd_jar.exists():
-        raise FileNotFoundError(f"Missing NDD dependency {jdd_jar}")
-    # Ensure local Maven repo has the JDD artifact
-    run([
-        "mvn",
-        "-q",
-        "install:install-file",
-        f"-Dfile={jdd_jar}",
-        "-DgroupId=org.bitbucket.vahidi",
-        "-DartifactId=JDD",
-        "-Dversion=111",
-        "-Dpackaging=jar",
-    ], cwd=ROOT / "NDD")
-    # Clean and rebuild
-    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=ROOT / "NDD")
+    ndd_dir = ROOT / "NDD"
+    if not ndd_dir.exists():
+        run(["git", "clone", "--no-checkout", NDD_URL, str(ndd_dir)])
+        run(["git", "checkout", "--detach", NDD_REVISION], cwd=ndd_dir)
+    adapters.prepare("NDD", run, JOBS)
+
 
 def ensure_ndd_reuse():
-    import zipfile
-    ndd_reuse_dir = ROOT / "NDD-reuse"
-    jdd_jar = ndd_reuse_dir / "lib" / "jdd-111.jar"
-    if not jdd_jar.exists():
-        raise FileNotFoundError(f"Missing NDD-reuse dependency {jdd_jar}")
-    run([
-        "mvn",
-        "-q",
-        "install:install-file",
-        f"-Dfile={jdd_jar}",
-        "-DgroupId=org.bitbucket.vahidi",
-        "-DartifactId=JDD",
-        "-Dversion=111",
-        "-Dpackaging=jar",
-    ], cwd=ndd_reuse_dir)
-    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=ndd_reuse_dir)
-    # The maven-assembly jar-with-dependencies unpacks jdd-111.jar and its original BDD.class
-    # overwrites the patched BDD.class compiled from NDD-reuse's own jdd/bdd/BDD.java source.
-    # Patch the fat jar by replacing the affected class entries with the compiled patched versions.
-    fat_jar = ndd_reuse_dir / "target" / "ndd-1.0.1-jar-with-dependencies.jar"
-    classes_dir = ndd_reuse_dir / "target" / "classes"
-    patched_classes = {
-        cls_file.relative_to(classes_dir).as_posix(): cls_file
-        for cls_file in classes_dir.glob("jdd/**/*.class")
-    }
-    if patched_classes:
-        print(f"[patch] Replacing {len(patched_classes)} patched BDD class(es) in fat jar")
-        tmp_jar = fat_jar.with_suffix(".jar.tmp")
-        with zipfile.ZipFile(fat_jar, "r") as src, zipfile.ZipFile(tmp_jar, "w", compression=zipfile.ZIP_DEFLATED) as dst:
-            for item in src.infolist():
-                if item.filename in patched_classes:
-                    dst.write(patched_classes[item.filename], item.filename)
-                else:
-                    dst.writestr(item, src.read(item.filename))
-        tmp_jar.replace(fat_jar)
+    adapters.prepare("NDD-reuse", run, JOBS)
+
 
 def ensure_ndd_soa():
-    jdd_jar = ROOT / "NDD-SoA" / "lib" / "jdd-111.jar"
+    jdd_jar = NDD_SOA_DIR / "lib" / "jdd-111.jar"
     if not jdd_jar.exists():
         raise FileNotFoundError(f"Missing NDD dependency {jdd_jar}")
     # Ensure local Maven repo has the JDD artifact
@@ -265,29 +113,22 @@ def ensure_ndd_soa():
         "-DartifactId=JDD",
         "-Dversion=111",
         "-Dpackaging=jar",
-    ], cwd=ROOT / "NDD-SoA")
+    ], cwd=NDD_SOA_DIR)
     # Clean and rebuild
-    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=ROOT / "NDD-SoA")
+    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=NDD_SOA_DIR)
 
 def ensure_decisiondiagrams():
-    dd_dir = ROOT / "DecisionDiagrams"
-    # Check if dotnet is available
-    if not shutil.which("dotnet"):
-        raise RuntimeError("dotnet SDK is not installed. Install it with: sudo pacman -S dotnet-sdk-6.0")
-    # Clean and rebuild
-    run(["dotnet", "restore", "DecisionDiagrams.sln"], cwd=dd_dir)
-    run(["dotnet", "clean", "-c", "Release", "DecisionDiagrams.sln"], cwd=dd_dir)
-    run(["dotnet", "build", "-c", "Release", "DecisionDiagrams.sln"], cwd=dd_dir)
+    adapters.prepare("decisiondiagrams", run, JOBS)
 
 
 TIMEOUT_SENTINEL_METRICS = {
-    "solutions": 0.0,
-    "nodes_created": 0,
-    "nodes_alive": 0,
-    "ndd_nodes_created": 0,
-    "ndd_nodes_alive": 0,
-    "bdd_nodes_created": 0,
-    "bdd_nodes_alive": 0,
+    "solutions": None,
+    "nodes_created": None,
+    "nodes_alive": None,
+    "ndd_nodes_created": None,
+    "ndd_nodes_alive": None,
+    "bdd_nodes_created": None,
+    "bdd_nodes_alive": None,
 }
 
 def _poll_rss(pid, interval, result):
@@ -315,32 +156,45 @@ def _poll_rss(pid, interval, result):
 
 def execute_with_metrics(cmd, cwd, env, timeout_sec=DEFAULT_TIMEOUT_SEC):
     """Execute command and measure time/memory, returning a timeout result instead of retrying."""
+    # GNU time reports the kernel high-water mark even for millisecond native runs.
+    # Polling remains the fallback for timeouts and platforms without GNU time.
+    resource_prefix = "NQUEENS_RESOURCE max_rss_kb="
+    use_gnu_time = sys.platform.startswith("linux") and Path("/usr/bin/time").is_file()
+    measured_cmd = ["/usr/bin/time", "-f", resource_prefix + "%M", "--", *cmd] if use_gnu_time else cmd
+    start_time = time.perf_counter()
     proc = subprocess.Popen(
-        cmd,
+        measured_cmd,
         cwd=cwd,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        start_new_session=os.name == "posix",
     )
 
     rss_result = {}
     poller = threading.Thread(target=_poll_rss, args=(proc.pid, 0.05, rss_result), daemon=True)
     poller.start()
 
-    start_time = time.perf_counter()
     timed_out = False
     try:
         stdout, stderr = proc.communicate(timeout=timeout_sec)
         elapsed_time = time.perf_counter() - start_time
     except subprocess.TimeoutExpired:
-        proc.kill()
+        if os.name == "posix":
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()
         stdout, stderr = proc.communicate()
         elapsed_time = timeout_sec
         timed_out = True
 
     poller.join(timeout=1)
     max_rss = rss_result.get("peak_rss_kb", 0)
+    if use_gnu_time and not timed_out:
+        for line in stderr.splitlines():
+            if line.startswith(resource_prefix):
+                max_rss = int(line[len(resource_prefix):])
 
     return {
         "returncode": proc.returncode,
@@ -370,18 +224,15 @@ def parse_metrics(stdout):
 
     size = int(parts["n"])
     solutions = float(parts["solutions"])
-    nodes_created = int(parts["nodes_created"])
-    nodes_alive = int(parts["nodes_alive"])
-    ndd_nodes_created = int(parts.get("ndd_nodes_created", 0))
-    ndd_nodes_alive = int(parts.get("ndd_nodes_alive", 0))
-    bdd_nodes_created = int(parts.get("bdd_nodes_created", nodes_created))
-    bdd_nodes_alive = int(parts.get("bdd_nodes_alive", nodes_alive))
-    if "ndd_nodes_created" not in parts and "bdd_nodes_created" not in parts:
-        ndd_nodes_created = 0
-        bdd_nodes_created = nodes_created
-    if "ndd_nodes_alive" not in parts and "bdd_nodes_alive" not in parts:
-        ndd_nodes_alive = 0
-        bdd_nodes_alive = nodes_alive
+    # An absent upstream counter is unavailable, rather than zero.
+    def optional_int(key, fallback=None):
+        return int(parts[key]) if key in parts else fallback
+    nodes_created = optional_int("nodes_created")
+    nodes_alive = optional_int("nodes_alive")
+    ndd_nodes_created = optional_int("ndd_nodes_created", 0 if nodes_created is not None else None)
+    ndd_nodes_alive = optional_int("ndd_nodes_alive", 0 if nodes_alive is not None else None)
+    bdd_nodes_created = optional_int("bdd_nodes_created", nodes_created)
+    bdd_nodes_alive = optional_int("bdd_nodes_alive", nodes_alive)
     seconds = float(parts["seconds"]) if "seconds" in parts else None
     return {
         "size": size,
@@ -403,10 +254,13 @@ def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC):
     if result["timed_out"]:
         print(f"[timeout] {impl.name:10s} N={size:2d} time={timeout_sec:7.3f}s rss={result['max_rss']:>8d}KB")
         return {
+            **adapters.provenance(impl.name),
+            "status": "timeout",
             "implementation": impl.name,
             "language": impl.language,
             "size": size,
             "time_sec": timeout_sec,
+            "solver_time_sec": None,
             "max_rss_kb": result["max_rss"],
             "nodes_created": TIMEOUT_SENTINEL_METRICS["nodes_created"],
             "nodes_alive": TIMEOUT_SENTINEL_METRICS["nodes_alive"],
@@ -426,17 +280,20 @@ def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC):
     metrics = parse_metrics(result["stdout"])
     if metrics["size"] != size:
         raise RuntimeError(f"Implementation {impl.name} reported size {metrics['size']} but expected {size}")
-    time_sec = metrics["seconds"] if metrics["seconds"] is not None else result["elapsed"]
+    time_sec = result["elapsed"]
     max_rss = result["max_rss"]
     print(f"[run] {impl.name:10s} N={size:2d} time={time_sec:7.3f}s rss={max_rss:>8d}KB "
           f"created={metrics['nodes_created']} alive={metrics['nodes_alive']} "
           f"(bdd={metrics['bdd_nodes_created']}/{metrics['bdd_nodes_alive']} "
           f"ndd={metrics['ndd_nodes_created']}/{metrics['ndd_nodes_alive']})")
     return {
+        **adapters.provenance(impl.name),
+        "status": "ok",
         "implementation": impl.name,
         "language": impl.language,
         "size": size,
         "time_sec": time_sec,
+        "solver_time_sec": metrics["seconds"],
         "max_rss_kb": max_rss,
         "nodes_created": metrics["nodes_created"],
         "nodes_alive": metrics["nodes_alive"],
@@ -452,9 +309,13 @@ def write_results(rows, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "implementation",
+        "upstream_url",
+        "upstream_revision",
+        "status",
         "language",
         "size",
         "time_sec",
+        "solver_time_sec",
         "max_rss_kb",
         "nodes_created",
         "nodes_alive",
@@ -481,7 +342,7 @@ def plot_results(output_path):
     print(f"[plot] Generating plots from {output_path}")
     subprocess.run(
         [
-            "python3",
+            sys.executable,
             str(plot_script),
             "--input",
             str(output_path),
@@ -495,7 +356,15 @@ def plot_results(output_path):
 
 def parse_args():
     default_targets = get_default_targets()
-    parser = argparse.ArgumentParser(description="Run N-Queens benchmarks across multiple BDD implementations.")
+    parser = argparse.ArgumentParser(
+        description="Run N-Queens benchmarks across multiple BDD implementations.",
+        epilog=(
+            "Deprecated targets: "
+            + "; ".join(f"{name} -> {replacement}" for name, replacement in DEPRECATED_TARGETS.items())
+            + ". NDD-SoA-FD-ZDD remains a legacy finite-domain experiment. "
+            "These targets can be selected explicitly or with --targets all."
+        ),
+    )
     parser.add_argument(
         "--sizes",
         nargs="+",
@@ -527,162 +396,50 @@ def parse_args():
         default=default_targets,
         help=f"Which implementations to run (default: {' '.join(default_targets)}). Example: --targets BuDDy Sylvan JSylvan",
     )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help="Run existing build artifacts without rebuilding implementations",
+    )
     return parser.parse_args()
 
 
 def build_implementations():
+    def ndd(name, prepare, mode=None, source="NDD"):
+        return Implementation(name, "Java", prepare,
+                              lambda size, _: adapters.ndd_command(source, size, mode))
+
+    legacy_jar = str(NDD_SOA_DIR / "target" / "ndd-1.0.1-jar-with-dependencies.jar")
     return [
-        Implementation(
-            "BuDDy",
-            "C",
-            ensure_buddy,
-            lambda size, _: [str(ROOT / "BuDDy" / "examples" / "queen" / "queen"), str(size)],
-            workdir=ROOT,
-            extra_env={
-                "LD_LIBRARY_PATH": f"{ROOT / 'BuDDy' / 'src' / '.libs'}:{os.environ.get('LD_LIBRARY_PATH','')}",
-            },
-        ),
-        Implementation(
-            "Sylvan",
-            "C",
-            ensure_sylvan,
-            lambda size, workers: [
-                str(ROOT / "sylvan" / "build" / "examples" / "nqueens_fast"),
-                "-w", str(workers),
-                str(size),
-            ],
-            workdir=ROOT,
-            extra_env={
-                "LD_LIBRARY_PATH": f"{ROOT / 'sylvan' / 'build' / 'src'}:{os.environ.get('LD_LIBRARY_PATH','')}",
-            },
-        ),
-        Implementation(
-            "CUDD",
-            "C",
-            ensure_cudd,
-            lambda size, _: [str(ROOT / "cudd" / "bin" / "nqueens_bdd"), str(size)],
-        ),
-        Implementation(
-            "JDD",
-            "Java",
-            ensure_jdd,
-            lambda size, _: [
-                "java",
-                "-cp", "build/classes/java/main",
-                "jdd.examples.BDDQueens",
-                str(size),
-            ],
-            workdir=ROOT / "jdd",
-        ),
-        Implementation(
-            "ZDD",
-            "Java",
-            ensure_jdd,
-            lambda size, _: [
-                "java",
-                "-cp", "build/classes/java/main",
-                "jdd.examples.ZDDQueens",
-                str(size),
-            ],
-            workdir=ROOT / "jdd",
-        ),
-        Implementation(
-            "JSylvan",
-            "Java",
-            ensure_jsylvan,
-            lambda size, workers: [
-                "java",
-                "-cp", "target/sylvan-1.0.0-SNAPSHOT.jar",
-                "jsylvan.examples.JSylvanNQueens",
-                "-w", str(workers),
-                "--memory-mb", str(JSYLVAN_MEMORY_MB),
-                str(size),
-            ],
-            workdir=ROOT / "jsylvan",
-        ),
-        Implementation(
-            "NDD",
-            "Java",
-            ensure_ndd,
-            lambda size, _: [
-                "java",
-                "-cp", str(ROOT / "NDD" / "target" / "ndd-1.0.1-jar-with-dependencies.jar"),
-                "application.nqueen.NDDSolution",
-                str(size),
-            ],
-            workdir=ROOT / "NDD",
-        ),
-        Implementation(
-            "NDD-reuse",
-            "Java",
-            ensure_ndd_reuse,
-            lambda size, _: [
-                "java",
-                "-cp", str(ROOT / "NDD-reuse" / "target" / "ndd-1.0.1-jar-with-dependencies.jar"),
-                "application.nqueen.NDDSolution",
-                str(size),
-            ],
-            workdir=ROOT / "NDD-reuse",
-        ),
-        Implementation(
-            "NDD-SoA",
-            "Java",                        
-            ensure_ndd_soa,             
-            lambda size, _: [
-                "java",
-                "-cp", str(ROOT / "NDD-SoA" / "target" / "ndd-1.0.1-jar-with-dependencies.jar"), 
-                "application.nqueen.NDDSolution", 
-                str(size),
-            ],
-            workdir=ROOT / "NDD-SoA",
-        ),
-        Implementation(
-            "NDD-SoA-BCDD",
-            "Java",
-            ensure_ndd_soa,
-            lambda size, _: [
-                "java",
-                "-cp", str(ROOT / "NDD-SoA" / "target" / "ndd-1.0.1-jar-with-dependencies.jar"),
-                "application.nqueen.ComplementedBddNDDSolution",
-                str(size),
-            ],
-            workdir=ROOT / "NDD-SoA",
-        ),
-        Implementation(
-            "NDD-SoA-FD-ZDD",
-            "Java",
-            ensure_ndd_soa,
-            lambda size, _: [
-                "java",
-                "-cp", str(ROOT / "NDD-SoA" / "target" / "ndd-1.0.1-jar-with-dependencies.jar"),
-                "application.nqueen.FiniteDomainZddNDDSolution",
-                str(size),
-            ],
-            workdir=ROOT / "NDD-SoA",
-        ),
-        Implementation(
-            "DD-BDD",
-            "C#",
-            ensure_decisiondiagrams,
-            lambda size, _: [
-                "dotnet",
-                str(ROOT / "DecisionDiagrams" / "DecisionDiagrams.Bench" / "bin" / "Release" / "net6.0" / "DecisionDiagrams.Bench.dll"),
-                str(size),
-                "--use-bdd",
-            ],
-            workdir=ROOT / "DecisionDiagrams",
-        ),
-        Implementation(
-            "DD-CBDD",
-            "C#",
-            ensure_decisiondiagrams,
-            lambda size, _: [
-                "dotnet",
-                str(ROOT / "DecisionDiagrams" / "DecisionDiagrams.Bench" / "bin" / "Release" / "net6.0" / "DecisionDiagrams.Bench.dll"),
-                str(size),
-            ],
-            workdir=ROOT / "DecisionDiagrams",
-        ),
+        Implementation("BuDDy", "C", ensure_buddy,
+                       lambda size, _: [str(adapters.executable("buddy")), str(size)]),
+        Implementation("Sylvan", "C", ensure_sylvan,
+                       lambda size, workers: [str(adapters.executable("sylvan")), "-w", str(workers), str(size)]),
+        Implementation("CUDD", "C", ensure_cudd,
+                       lambda size, _: [str(adapters.executable("cudd")), str(size)]),
+        Implementation("JDD", "Java", ensure_jdd,
+                       lambda size, _: ["java", "-cp", str(adapters.BUILD / "jdd/classes"), "benchmark.jdd.BDDQueens", str(size)]),
+        Implementation("ZDD", "Java", ensure_jdd,
+                       lambda size, _: ["java", "-cp", str(adapters.BUILD / "jdd/classes"), "benchmark.jdd.ZDDQueens", str(size)]),
+        Implementation("JSylvan", "Java", ensure_jsylvan,
+                       lambda size, workers: ["java", "-cp", str(adapters.executable("jsylvan")),
+                           "benchmark.jsylvan.JSylvanNQueens", "-w", str(workers),
+                           "--memory-mb", str(JSYLVAN_MEMORY_MB), str(size)]),
+        ndd("NDD-original", ensure_ndd_original, source="NDD-original"),
+        ndd("NDD", ensure_ndd),
+        ndd("NDD-BCDD", ensure_ndd, "--bcdd"),
+        ndd("NDD-ZDD", ensure_ndd, "--zdd"),
+        ndd("NDD-reuse", ensure_ndd_reuse, source="NDD-reuse"),
+        Implementation("NDD-SoA", "Java", ensure_ndd_soa,
+                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.NDDSolution", str(size)], workdir=NDD_SOA_DIR),
+        Implementation("NDD-SoA-BCDD", "Java", ensure_ndd_soa,
+                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.ComplementedBddNDDSolution", str(size)], workdir=NDD_SOA_DIR),
+        Implementation("NDD-SoA-FD-ZDD", "Java", ensure_ndd_soa,
+                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.FiniteDomainZddNDDSolution", str(size)], workdir=NDD_SOA_DIR),
+        Implementation("DD-BDD", "C#", ensure_decisiondiagrams,
+                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size), "--use-bdd"]),
+        Implementation("DD-CBDD", "C#", ensure_decisiondiagrams,
+                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size)]),
     ]
 
 
@@ -709,8 +466,22 @@ def main():
             seen.add(name)
             selected_impls.append(impl_map[name])
 
-    for impl in selected_impls:
-        impl.ensure_ready()
+    if not args.skip_build:
+        prepared = set()
+        for impl in selected_impls:
+            if impl.preparer not in prepared:
+                impl.ensure_ready()
+                prepared.add(impl.preparer)
+
+    # Verify even --skip-build runs against the declared upstream sources.
+    sources = {adapters.TARGET_SOURCES[impl.name] for impl in selected_impls
+               if impl.name in adapters.TARGET_SOURCES}
+    if "sylvan" in sources:
+        sources.add("lace")
+    if "jsylvan" in sources:
+        sources.add("jsylvan-native")
+    for name in sorted(sources):
+        adapters.source(name)
 
     rows = []
     for size in args.sizes:
@@ -726,6 +497,8 @@ if __name__ == "__main__":
         main()
     except subprocess.CalledProcessError as exc:
         print(f"[error] Command failed with exit code {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr, file=sys.stderr)
         sys.exit(exc.returncode)
     except Exception as exc:
         print(f"[error] {exc}", file=sys.stderr)

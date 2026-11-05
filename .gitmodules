@@ -1,21 +1,26 @@
 [submodule "BuDDy"]
 	path = BuDDy
-	url = git@github.com:Augists/BuDDy.git
+	url = https://github.com/jgcoded/BuDDy.git
 [submodule "sylvan"]
 	path = sylvan
-	url = git@github.com:Augists/sylvan.git
+	url = https://github.com/trolando/sylvan.git
 [submodule "cudd"]
 	path = cudd
-	url = git@github.com:Augists/cudd.git
+	url = https://github.com/cuddorg/cudd.git
 [submodule "jdd"]
 	path = jdd
-	url = git@github.com:Augists/jdd.git
+	url = https://bitbucket.org/vahidi/jdd.git
 [submodule "jsylvan"]
 	path = jsylvan
-	url = git@github.com:Augists/jsylvan.git
+	url = https://github.com/utwente-fmt/jsylvan.git
 [submodule "NDD"]
-	path = NDD
-	url = git@github.com:Augists/NDD.git
+	path = NDD-original
+	url = https://github.com/XJTU-NetVerify/NDD.git
+	branch = ndd-original
+[submodule "NDD-reuse"]
+	path = NDD-reuse
+	url = https://github.com/XJTU-NetVerify/NDD.git
+	branch = reuse
 [submodule "DecisionDiagrams"]
 	path = DecisionDiagrams
-	url = git@github.com:Augists/DecisionDiagrams.git
+	url = https://github.com/microsoft/DecisionDiagrams.git

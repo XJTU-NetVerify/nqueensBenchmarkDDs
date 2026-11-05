@@ -1,0 +1,26 @@
+{
+  "Augists-NDD": {
+    "median_time_sec": 66.002168482,
+    "time_range_sec": [
+      62.822711334,
+      66.141774874
+    ],
+    "median_peak_rss_gib": 5.848411560058594,
+    "peak_rss_range_gib": [
+      5.500820159912109,
+      6.543239593505859
+    ]
+  },
+  "upstream-ndd-original": {
+    "median_time_sec": 63.186796328,
+    "time_range_sec": [
+      62.331620063,
+      63.20725019
+    ],
+    "median_peak_rss_gib": 6.468772888183594,
+    "peak_rss_range_gib": [
+      5.930484771728516,
+      6.9643707275390625
+    ]
+  }
+}

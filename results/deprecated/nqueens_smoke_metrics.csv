@@ -1,7 +1,0 @@
-implementation,language,size,time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
-NDD-SoA,Java,8,0.031662,78964,10797,600,9877,415,920,185,92.0
-NDD-SoA-BCDD,Java,8,0.037508,87000,10823,1312,9926,415,897,897,92.0
-NDD-SoA-FD-ZDD,Java,8,0.030472,79732,8822,407,0,0,8822,407,92.0
-NDD-SoA,Java,10,0.098343,127052,97595,2905,94507,2625,3088,280,724.0
-NDD-SoA-BCDD,Java,10,0.16469,152412,97638,5675,94588,2625,3050,3050,724.0
-NDD-SoA-FD-ZDD,Java,10,0.098617,121976,91681,2615,0,0,91681,2615,724.0

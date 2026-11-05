@@ -12,7 +12,8 @@
 | **CUDD** | C | 32 字节 | 指针链表 + 子表 | 有 (指针 LSB) |
 | **JDD** | Java | 14 字节 (分离数组) | 多个 `int[]`/`short[]` | 无 |
 | **JSylvan** | Java/C | 同 Sylvan (JNI 调用) | 同 Sylvan | 有 |
-| **NDD** | Java | ~40+ 字节 (HashMap) | `HashMap<NDD, Integer>` | 不适用 |
+| **NDD-original / NDD-reuse** | Java | Object and Map overhead | `HashMap<NDD, Integer>` | Depends on label backend |
+| **NDD / NDD-BCDD / NDD-ZDD** | Java | Multiple primitive arrays | SoA node table | Depends on label backend |
 
 ### DecisionDiagrams (DD-BDD) 节点结构
 
@@ -185,36 +186,57 @@ GC 之后 `this.index = nextFree`，新分配从压缩后的尾部继续，空�
 
 DD-BDD 的 struct 值类型直接内嵌在数组中，遍历时顺序访问连续内存。JDD 虽然也用数组，但节点数据分散在 `t_nodes[]`、`t_list[]`、`t_ref[]` 三个数组，每次操作一个节点至少引起 3 次可能不同 cache line 的访问。
 
-## NDD 的特殊性
+## NDD versions and node counts
 
-NDD (Network Decision Diagram) 不是传统 BDD 库，它是面向网络验证的决策图：
-- 节点用 `HashMap<NDD, Integer>` 存边，每条边的 label 是一个 BDD
-- 相比传统 BDD 的二叉结构，NDD 是多叉结构（一个节点可以有多条出边）
-- NDD 内部还嵌套了一个 JDD 实例作为 BDD 引擎
-- 适合网络验证中的字段级局部性优化，但在纯 N-Queens 问题上没有结构优势
+`NDD-original` and `NDD-reuse` use object-based NDD nodes with Map edge
+collections and their bundled BDD label backend. Maintained `NDD` uses a SoA
+node table made of primitive arrays. `NDD-BCDD` and `NDD-ZDD` select complemented
+BDD and ZDD labels. NDD graphs have field-level branching; NDD nodes and label
+nodes should be considered separately.
 
-## N=8 时的 Benchmark 数据
+Object-based storage includes node objects, Maps, edges, and backend tables;
+a single fixed byte size does not describe its memory use. Node counts across
+libraries are also not interchangeable units of memory.
 
-```
-实现        nodes_created  nodes_alive  time_sec
-BuDDy       53611          2451         0.019s
-Sylvan      54531          2451         0.045s
-CUDD        52385          2451         0.021s
-JDD         53083          2451         0.093s
-JSylvan     54140          2451         0.176s
-NDD         9877           9877         0.161s
-DD-BDD      52181          2458         0.106s
-DD-CBDD     46171          772          0.100s
-```
+## Current N=8 benchmark data
 
-注意：N=8 时问题规模太小，时间差异主要来自运行时启动开销（JVM ~100ms, .NET ~80ms），而非算法效率差异。真正能体现实现差异的是 N=11、12 时千万级节点规模的场景。
+The following observations come from
+[`results/nqueens_metrics.csv`](../results/nqueens_metrics.csv). Times include
+process startup and metrics output. These are single-run observations, not
+averages over repeated trials. The full dataset covers N=8 through N=13 with
+two Sylvan workers and a 500-second timeout.
 
-### nodes_alive 说明
+| Implementation | nodes_created | nodes_alive | time_sec |
+| --- | ---: | ---: | ---: |
+| BuDDy | 53611 | 2451 | 0.010 |
+| Sylvan | 54595 | 2451 | 0.037 |
+| CUDD | Unavailable | 2451 | 0.017 |
+| JDD | Unavailable | 2451 | 0.138 |
+| JSylvan | Unavailable | 2451 | 0.087 |
+| DD-BDD | Unavailable | 2458 | 0.086 |
+| DD-CBDD | Unavailable | 772 | 0.080 |
+| NDD-original | Unavailable | 631 | 0.167 |
+| NDD | 10797 | 600 | 0.159 |
+| NDD-BCDD | 11735 | 658 | 0.130 |
+| NDD-ZDD | 11055 | 496 | 0.148 |
+| NDD-reuse | Unavailable | 330 | 0.177 |
 
-- BuDDy/Sylvan/CUDD/JDD/JSylvan 的 `nodes_alive=2451` 高度一致，说明最终 BDD 结构相同
-- DD-BDD 的 `nodes_alive=2458` 略高，可能因补边存储方式的细微差异
-- DD-CBDD 的 `nodes_alive=772` 远低于其他，这是 chain reduction 的效果——连续相同分支的变量被压缩成一个节点
-- NDD 的 `nodes_created=nodes_alive=9877`，说明 N=8 时未触发 GC，所有创建的节点都存活
+`nodes_created` is reported only when upstream exposes a lifetime creation
+counter; a blank value does not mean zero. CUDD, JDD, JSylvan,
+DecisionDiagrams, NDD-original, and NDD-reuse leave it unavailable.
+Current table sizes are not substituted for lifetime allocations.
+
+`nodes_alive` follows each library's final graph-count API. Object-based NDD
+counts NDD and label nodes reachable from the final root; maintained NDD uses
+its public counters. Terminal nodes, complemented edges, and nodes retained
+after collection can follow different counting conventions. Equal counts or
+small differences alone do not establish why representations differ.
+DD-CBDD's chain reduction changes graph representation and node count.
+
+Every completed run was checked against the expected N-Queens solution count.
+For N=13 that is 73,712. BuDDy's current N=13 row records a 500-second timeout
+with blank solution and node fields. See
+[`benchmarks/README.md`](../benchmarks/README.md) for API and measurement details.
 
 ## CBDD (Chain-Reduced BDD) 特殊优化
 

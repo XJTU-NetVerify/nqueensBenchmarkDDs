@@ -15,10 +15,9 @@ from pathlib import Path
 import psutil
 
 ROOT = Path(__file__).resolve().parent.parent
-NDD_SOA_DIR = ROOT / "deprecated" / "NDD-SoA"
 RESULTS_DIR = ROOT / "results"
 JOBS = max(1, os.cpu_count() or 1)
-DEFAULT_SIZES = list(range(8, 13))
+DEFAULT_SIZES = list(range(8, 14))
 DEFAULT_TIMEOUT_SEC = 500
 JSYLVAN_MEMORY_MB = 2048
 sys.path.insert(0, str(ROOT))
@@ -26,12 +25,7 @@ from benchmarks import build as adapters
 
 NDD_URL = adapters.LOCK["NDD"]["url"]
 NDD_REVISION = adapters.LOCK["NDD"]["revision"]
-DEPRECATED_TARGETS = {
-    "NDD-SoA": "NDD",
-    "NDD-SoA-BCDD": "NDD-BCDD",
-}
-# Retain historical implementations for explicit selection and --targets all.
-EXCLUDED_DEFAULT_TARGETS = set(DEPRECATED_TARGETS) | {"NDD-SoA-FD-ZDD", "ZDD"}
+EXCLUDED_DEFAULT_TARGETS = {"ZDD"}
 
 
 class Implementation:
@@ -98,24 +92,6 @@ def ensure_ndd():
 def ensure_ndd_reuse():
     adapters.prepare("NDD-reuse", run, JOBS)
 
-
-def ensure_ndd_soa():
-    jdd_jar = NDD_SOA_DIR / "lib" / "jdd-111.jar"
-    if not jdd_jar.exists():
-        raise FileNotFoundError(f"Missing NDD dependency {jdd_jar}")
-    # Ensure local Maven repo has the JDD artifact
-    run([
-        "mvn",
-        "-q",
-        "install:install-file",
-        f"-Dfile={jdd_jar}",
-        "-DgroupId=org.bitbucket.vahidi",
-        "-DartifactId=JDD",
-        "-Dversion=111",
-        "-Dpackaging=jar",
-    ], cwd=NDD_SOA_DIR)
-    # Clean and rebuild
-    run(["mvn", "-q", "-DskipTests", "clean", "package"], cwd=NDD_SOA_DIR)
 
 def ensure_decisiondiagrams():
     adapters.prepare("decisiondiagrams", run, JOBS)
@@ -358,19 +334,13 @@ def parse_args():
     default_targets = get_default_targets()
     parser = argparse.ArgumentParser(
         description="Run N-Queens benchmarks across multiple BDD implementations.",
-        epilog=(
-            "Deprecated targets: "
-            + "; ".join(f"{name} -> {replacement}" for name, replacement in DEPRECATED_TARGETS.items())
-            + ". NDD-SoA-FD-ZDD remains a legacy finite-domain experiment. "
-            "These targets can be selected explicitly or with --targets all."
-        ),
     )
     parser.add_argument(
         "--sizes",
         nargs="+",
         type=int,
         default=DEFAULT_SIZES,
-        help="Board sizes to benchmark (default: 8 9 10 11 12)",
+        help="Board sizes to benchmark (default: 8 9 10 11 12 13)",
     )
     parser.add_argument(
         "--workers",
@@ -409,7 +379,6 @@ def build_implementations():
         return Implementation(name, "Java", prepare,
                               lambda size, _: adapters.ndd_command(source, size, mode))
 
-    legacy_jar = str(NDD_SOA_DIR / "target" / "ndd-1.0.1-jar-with-dependencies.jar")
     return [
         Implementation("BuDDy", "C", ensure_buddy,
                        lambda size, _: [str(adapters.executable("buddy")), str(size)]),
@@ -425,21 +394,15 @@ def build_implementations():
                        lambda size, workers: ["java", "-cp", str(adapters.executable("jsylvan")),
                            "benchmark.jsylvan.JSylvanNQueens", "-w", str(workers),
                            "--memory-mb", str(JSYLVAN_MEMORY_MB), str(size)]),
+        Implementation("DD-BDD", "C#", ensure_decisiondiagrams,
+                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size), "--use-bdd"]),
+        Implementation("DD-CBDD", "C#", ensure_decisiondiagrams,
+                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size)]),
         ndd("NDD-original", ensure_ndd_original, source="NDD-original"),
         ndd("NDD", ensure_ndd),
         ndd("NDD-BCDD", ensure_ndd, "--bcdd"),
         ndd("NDD-ZDD", ensure_ndd, "--zdd"),
         ndd("NDD-reuse", ensure_ndd_reuse, source="NDD-reuse"),
-        Implementation("NDD-SoA", "Java", ensure_ndd_soa,
-                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.NDDSolution", str(size)], workdir=NDD_SOA_DIR),
-        Implementation("NDD-SoA-BCDD", "Java", ensure_ndd_soa,
-                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.ComplementedBddNDDSolution", str(size)], workdir=NDD_SOA_DIR),
-        Implementation("NDD-SoA-FD-ZDD", "Java", ensure_ndd_soa,
-                       lambda size, _: ["java", "-cp", legacy_jar, "application.nqueen.FiniteDomainZddNDDSolution", str(size)], workdir=NDD_SOA_DIR),
-        Implementation("DD-BDD", "C#", ensure_decisiondiagrams,
-                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size), "--use-bdd"]),
-        Implementation("DD-CBDD", "C#", ensure_decisiondiagrams,
-                       lambda size, _: ["dotnet", str(adapters.executable("decisiondiagrams")), str(size)]),
     ]
 
 

@@ -1,4 +1,0 @@
-implementation,upstream_url,upstream_revision,status,language,size,time_sec,solver_time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
-Sylvan,https://github.com/trolando/sylvan.git,1ca6868c50c2e481ca60013485faf335dbc7d1c2,ok,C,8,0.03322197699998242,,56256,54595,2451,0,0,54595,2451,92.0
-Sylvan,https://github.com/trolando/sylvan.git,1ca6868c50c2e481ca60013485faf335dbc7d1c2,ok,C,10,0.24196911299998192,,70484,959339,25945,0,0,959339,25945,724.0
-Sylvan,https://github.com/trolando/sylvan.git,1ca6868c50c2e481ca60013485faf335dbc7d1c2,timeout,C,13,100,,1384124,,,,,,,

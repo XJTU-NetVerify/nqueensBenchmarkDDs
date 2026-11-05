@@ -1,8 +1,9 @@
 # Repository-owned benchmark adapters
 
 Active library checkouts contain pinned upstream source. N-Queens drivers,
-metrics, JNI build configuration, and adapter build logic live here. The three
-archived `deprecated/NDD-SoA` targets remain custom implementations.
+metrics, JNI build configuration, and adapter build logic live here. The custom SoA
+implementations are archived under `deprecated/NDD-SoA` and are not registered
+in the runner.
 
 `upstream-lock.json` records canonical URLs and exact revisions. The library
 submodules use pre-benchmark upstream baselines compatible with the original
@@ -37,11 +38,11 @@ is required. Cached adapter builds are keyed by sources, configuration, and pins
 From PowerShell at the repository root:
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --targets all --sizes 8 10 --workers 2 --timeout 100 --output results/upstream/nqueens_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --targets all --sizes 8 10 --workers 2 --timeout 100 --output .bench-build/experiments/smoke/nqueens_metrics.csv
 ```
 
-The deprecated SoA targets are included only when selected explicitly or with
-`--targets all`. Add `--skip-build` after a successful build. Tests can be run with
+`--targets all` selects all 13 upstream targets. Add `--skip-build` after a
+successful build. Tests can be run with
 `python -m unittest discover -s tests -v` using the configured Python environment.
 
 ## Measurements
@@ -64,7 +65,7 @@ The deprecated SoA targets are included only when selected explicitly or with
   nodes for NDD-BCDD and NDD-ZDD as well. Unavailable counters are blank, not zero.
 - `status`: `ok` or `timeout`. Timeout rows have blank solution/node counters.
 - `upstream_url` and `upstream_revision`: the checked source used for that row;
-  archived custom SoA rows leave them blank.
+  historical archived custom SoA rows leave them blank.
 
 Plots omit unavailable metrics, and display an unavailable message when every
 row lacks the requested counter. The CSV does not imply all node representations

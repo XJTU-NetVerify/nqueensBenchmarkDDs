@@ -1,4 +1,0 @@
-implementation,language,size,time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
-NDD-reuse,Java,8,0.051,127688,10952,330,9877,287,1075,43,92.0
-NDD-reuse,Java,9,0.123,168700,29677,1024,27781,971,1896,53,352.0
-NDD-reuse,Java,10,0.323,200896,97922,2489,94507,2425,3415,64,724.0

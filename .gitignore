@@ -4,3 +4,6 @@ __pycache__/
 /NDD/
 .bench-build/
 benchmarks/decisiondiagrams/obj/
+/.m2/
+**/target/
+*.iml

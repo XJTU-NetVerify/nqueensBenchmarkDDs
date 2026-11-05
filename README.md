@@ -1,30 +1,19 @@
 # NQueens Benchmark for BDD and NDD libraries 
 
-> [!NOTE]
-> - [**N**etwork **D**ecision **D**iagram]()
-> 1. NDD-original
-> 2. NDD-reuse
-> 3. NDD
->    
-> - C
-> 1. [BuDDy]()
-> 2. [CUDD]()
-> 
-> - Java
-> 1. JDD
-> 2. JavaBDD??
->
-> - C#
-> 1. [DecisionDiagrams](https://github.com/microsoft/DecisionDiagrams) (BDDNode)
-> 2. [DecisionDiagrams](https://github.com/microsoft/DecisionDiagrams) (CBDDNode)
->
-> - Parallel (Java)
-> 1. Sylvan
-> 2. JSylvan
->    
+The benchmark compares pinned upstream BuDDy, CUDD, Sylvan, JDD (BDD and
+ZDD), JSylvan, Microsoft DecisionDiagrams (BDD and chain-reduced BDD), and
+XJTU-NetVerify NDD (original, reuse, and maintained BDD/BCDD/ZDD label modes).
 
+## Current results
 
-## results
+`results/` contains only the latest N=8?13 run across the 12 default targets
+and its six plots. The run used two Sylvan workers and a 500-second timeout:
+71 runs returned the expected solution count; BuDDy timed out at N=13.
+Historical result files have been removed. To reproduce this run:
+
+```powershell
+.\scripts\run_nqueens_wsl.ps1 --workers 2 --output results/nqueens_metrics.csv
+```
 
 ![](results/nqueens_time_sec.png)
 
@@ -57,16 +46,16 @@ From PowerShell at the repository root, run the 12 default implementations:
 
 After the implementations have been built, add `--skip-build` to reuse them.
 The launcher selects Java 17 and Ubuntu's Python packages. `--targets all`
-runs all 16 implementations, including ZDD and the three historical NDD-SoA
-targets excluded from the default list. The script saves CSV results and
+runs all 13 upstream implementations, including ZDD, which is excluded from
+the default list. The script saves CSV results and
 generates plots.
 
 ### Deprecated and legacy NDD-SoA targets
 
 NDD retains the SoA node-storage design and is the maintained benchmark
-replacement. The following targets are excluded from default runs:
+replacement. The following historical targets have been removed from the runner:
 
-Their complete Maven project and source are archived under
+Their Maven project and source are archived under
 [`deprecated/NDD-SoA/`](deprecated/NDD-SoA/). See
 [`deprecated/README.md`](deprecated/README.md) for details.
 
@@ -78,9 +67,9 @@ Their complete Maven project and source are archived under
 
 The finite-domain ZDD variant models a field as a set of concrete values;
 NDD's ZDD mode models Boolean bit assignments. They are not interchangeable.
-All historical source files and saved results are retained for reproducibility.
-To rerun a historical target, name it explicitly (for example,
-`--targets NDD-SoA`) or use `--targets all`.
+Archived source, tests, dependencies, and project documentation are retained;
+generated build outputs and historical benchmark results have been removed.
+The active runner no longer builds or executes these archived targets.
 
 ### Upstream original NDD
 
@@ -97,7 +86,7 @@ source overlay is used. Lifetime allocation counters are unavailable and left
 blank. Live-node metrics count distinct nodes reachable from the final root.
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --targets NDD-original --sizes 13 --timeout 100 --output results/original/nqueens_n13_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --targets NDD-original --sizes 13 --timeout 100 --output .bench-build/experiments/original/nqueens_n13_metrics.csv
 ```
 
 ### Upstream NDD reuse branch
@@ -111,7 +100,7 @@ No upstream source files or compiled library classes are patched. Allocation
 counters are unavailable; reachable NDD and label BDD counts are reported.
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --targets NDD-reuse --sizes 13 --timeout 100 --output results/reuse/nqueens_n13_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --targets NDD-reuse --sizes 13 --timeout 100 --output .bench-build/experiments/reuse/nqueens_n13_metrics.csv
 ```
 
 ### Maintained upstream NDD
@@ -127,7 +116,7 @@ Builds require Git, Maven, and JDK 11 or later (the WSL launcher selects JDK 17)
 To build and run just this implementation for N=13 with a 100-second timeout:
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --targets NDD --sizes 13 --timeout 100 --output results/latest/nqueens_n13_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --targets NDD --sizes 13 --timeout 100 --output .bench-build/experiments/ndd/nqueens_n13_metrics.csv
 ```
 
 Use `--skip-build` on subsequent runs to reuse its compiled adapter. The
@@ -148,12 +137,12 @@ label-node counts for the selected backend, including BCDD and ZDD labels.
 
 Target names were simplified: `NDD-latest`, `NDD-latest-BCDD`, and
 `NDD-latest-ZDD` are now `NDD`, `NDD-BCDD`, and `NDD-ZDD`. The former
-`NDD` target is now `NDD-original`. Historical CSVs retain their original labels.
+`NDD` target is now `NDD-original`. Older target names are no longer registered in the runner.
 
 To compare the three modes using the compiled JAR:
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --skip-build --targets NDD NDD-BCDD NDD-ZDD --sizes 13 --timeout 100 --output results/latest_modes/nqueens_n13_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --skip-build --targets NDD NDD-BCDD NDD-ZDD --sizes 13 --timeout 100 --output .bench-build/experiments/ndd_modes/nqueens_n13_metrics.csv
 ```
 
 ### Dependency
@@ -169,11 +158,11 @@ Sylvan/JSylvan build will fail without pkg-config or libgmp-dev.
 
 ### Steps
 
-1. clone with submodule：
+1. Clone with submodules:
    ```bash
-   git clone --recurse-submodules git@github.com:Augists/nqueensBenchmarkDDs.git
+   git clone --recurse-submodules https://github.com/XJTU-NetVerify/nqueensBenchmarkDDs.git
    ```
-   if you clone without `--recurse-submodules`，run the script below after clone:
+   If cloned without `--recurse-submodules`, initialize them with:
    ```bash
    git -c core.autocrlf=false submodule update --init --recursive
    ```
@@ -181,14 +170,15 @@ Sylvan/JSylvan build will fail without pkg-config or libgmp-dev.
    ```bash
    python3 scripts/run_nqueens_benchmarks.py
    ```
-   - Board sizes default to N=8 through N=12; selected implementations are built automatically.
-   - Use `--sizes 8 9 10`, `--workers 0` (autodetect), `--timeout 100`, or `--targets BuDDy Sylvan NDD` to select a subset. Omit `--targets` for the 12 defaults; `--targets all` includes all 16 targets.
+   - Board sizes default to N=8 through N=13; selected implementations are built automatically.
+   - Use `--sizes 8 9 10`, `--workers 0` (autodetect), `--timeout 100`, or `--targets BuDDy Sylvan NDD` to select a subset. Omit `--targets` for the 12 defaults; `--targets all` includes all 13 upstream targets.
    - All results will be recorded in `results/nqueens_metrics.csv`
 3. plot
    ```bash
    python3 scripts/plot_nqueens_results.py --input results/nqueens_metrics.csv --output results
    ```
-   which will generate `nqueens_time_sec.png`、`results/nqueens_time_sec_log.png`、`nqueens_max_rss_kb.png`、`nqueens_nodes.png` and else.
+   This generates six plots in `results/`: execution time and peak RSS (linear
+   and log scales), nodes created, and final node count.
 
 ### Measurement schema
 

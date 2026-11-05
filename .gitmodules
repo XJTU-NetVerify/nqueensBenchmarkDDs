@@ -24,3 +24,6 @@
 [submodule "DecisionDiagrams"]
 	path = DecisionDiagrams
 	url = https://github.com/microsoft/DecisionDiagrams.git
+[submodule "NDD-maintained"]
+	path = NDD
+	url = https://github.com/XJTU-NetVerify/NDD.git

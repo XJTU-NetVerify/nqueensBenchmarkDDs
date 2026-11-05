@@ -107,8 +107,9 @@ counters are unavailable; reachable NDD and label BDD counts are reported.
 
 `NDD` benchmarks [XJTU-NetVerify/NDD](https://github.com/XJTU-NetVerify/NDD)
 alongside the existing NDD variants. It is included in both the default targets
-and `--targets all`. Its first build clones upstream into the ignored
-`NDD/` directory. The source is pinned to commit
+and `--targets all`. The `NDD/` directory is a Git submodule, initialized with
+`git submodule update --init --recursive` alongside BuDDy, CUDD, and the other
+primary libraries. Its source is pinned to commit
 `9c8eea1e086d84cc23e99eec1b240bb175714044` for reproducibility; advancing it
 requires updating `benchmarks/upstream-lock.json` and the checkout to the same commit.
 Builds require Git, Maven, and JDK 11 or later (the WSL launcher selects JDK 17).

@@ -23,8 +23,6 @@ JSYLVAN_MEMORY_MB = 2048
 sys.path.insert(0, str(ROOT))
 from benchmarks import build as adapters
 
-NDD_URL = adapters.LOCK["NDD"]["url"]
-NDD_REVISION = adapters.LOCK["NDD"]["revision"]
 EXCLUDED_DEFAULT_TARGETS = {"ZDD"}
 
 
@@ -82,12 +80,7 @@ def ensure_ndd_original():
 
 
 def ensure_ndd():
-    ndd_dir = ROOT / "NDD"
-    if not ndd_dir.exists():
-        run(["git", "clone", "--no-checkout", NDD_URL, str(ndd_dir)])
-        run(["git", "checkout", "--detach", NDD_REVISION], cwd=ndd_dir)
     adapters.prepare("NDD", run, JOBS)
-
 
 def ensure_ndd_reuse():
     adapters.prepare("NDD-reuse", run, JOBS)

@@ -220,6 +220,17 @@ For a short comparison on selected libraries that preserves the retained results
 
 The default output is [`results/rows/nqueens_metrics.csv`](results/rows/nqueens_metrics.csv),
 with two log-scale plots and [`benchmark.json`](results/rows/benchmark.json) alongside it.
+The retained main CSV currently covers N=8–12 across all 15 targets; it does
+not contain a complete N=13 comparison. Its metadata records the requested
+N=8–13 range, while the CSV records the sizes actually saved.
+
+Separate NDD-only N=13 experiments are available for
+[default caches with a 100-second timeout](results/rows/ndd-n13-timeout100-2026-11-10/nqueens_metrics.csv)
+and [larger caches](results/rows/ndd-cache1m-label100k-2026-11-10/nqueens_metrics.csv).
+The latter includes N=12 and N=13 for the three maintained NDD label modes.
+Their settings and plots are stored alongside each CSV; these configurations
+are separate from the main comparison.
+
 `--sizes`, `--targets`, `--timeout`, `--output`,
 and `--skip-build` work for both strategies. Standalone JDD `ZDD` remains optional
 and is included by `--targets all`.

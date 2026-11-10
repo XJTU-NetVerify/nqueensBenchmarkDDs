@@ -1,35 +1,35 @@
 [submodule "BuDDy"]
-	path = BuDDy
+	path = libraries/BuDDy
 	url = https://github.com/jgcoded/BuDDy.git
 [submodule "sylvan"]
-	path = sylvan
+	path = libraries/sylvan
 	url = https://github.com/trolando/sylvan.git
 [submodule "cudd"]
-	path = cudd
+	path = libraries/cudd
 	url = https://github.com/cuddorg/cudd.git
 [submodule "jdd"]
-	path = jdd
+	path = libraries/jdd
 	url = https://bitbucket.org/vahidi/jdd.git
 [submodule "jsylvan"]
-	path = jsylvan
+	path = libraries/jsylvan
 	url = https://github.com/utwente-fmt/jsylvan.git
 [submodule "NDD"]
-	path = NDD-original
+	path = libraries/NDD-original
 	url = https://github.com/XJTU-NetVerify/NDD.git
 	branch = ndd-original
 [submodule "NDD-reuse"]
-	path = NDD-reuse
+	path = libraries/NDD-reuse
 	url = https://github.com/XJTU-NetVerify/NDD.git
 	branch = reuse
 [submodule "DecisionDiagrams"]
-	path = DecisionDiagrams
+	path = libraries/DecisionDiagrams
 	url = https://github.com/microsoft/DecisionDiagrams.git
 [submodule "NDD-maintained"]
-	path = NDD
+	path = libraries/NDD
 	url = https://github.com/XJTU-NetVerify/NDD.git
 [submodule "JavaBDD"]
-	path = JavaBDD
+	path = libraries/JavaBDD
 	url = https://github.com/com-github-javabdd/com.github.javabdd.git
 [submodule "oxidd"]
-	path = oxidd
+	path = libraries/oxidd
 	url = https://github.com/oxidd/oxidd.git

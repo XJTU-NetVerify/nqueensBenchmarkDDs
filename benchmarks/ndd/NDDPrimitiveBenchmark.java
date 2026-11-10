@@ -5,6 +5,16 @@ import org.ants.jndd.diagram.NDD;
 
 public class NDDPrimitiveBenchmark {
     public static final int NDD_TABLE_SIZE = 100000000;
+    private static int fieldWidth;
+    private static int fieldsPerRow;
+
+    private static int getVar(int row, int column) {
+        return NDD.getVar(row * fieldsPerRow + column / fieldWidth, column % fieldWidth);
+    }
+
+    private static int getNotVar(int row, int column) {
+        return NDD.getNotVar(row * fieldsPerRow + column / fieldWidth, column % fieldWidth);
+    }
 
     private static final class Result {
         final double solutions;
@@ -46,8 +56,8 @@ public class NDDPrimitiveBenchmark {
             public Integer zero() { return NDD.ref(NDD.getFalse()); }
             public Integer step(int v, int value, Integer tail) {
                 if (value < 0) return NDD.ref(tail);
-                return NDD.ref(NDD.and(value == 1 ? NDD.getVar(v / n, v % n)
-                    : NDD.getNotVar(v / n, v % n), tail));
+                return NDD.ref(NDD.and(value == 1 ? getVar(v / n, v % n)
+                    : getNotVar(v / n, v % n), tail));
             }
             public Integer and(Integer a, Integer b) { return NDD.ref(NDD.and(a, b)); }
             public Integer or(Integer a, Integer b) { return NDD.ref(NDD.or(a, b)); }
@@ -55,10 +65,15 @@ public class NDDPrimitiveBenchmark {
         });
     }
 
-    // declare n fields, n bits per field
-    private static void declareFields(int n) {
-        for (int i = 0;i < n;i++) {
-            NDD.declareField(n);
+    // BITSET splits each row into chunks of at most seven bits, without padding.
+    private static void declareFields(int n, NDD.LabelMode mode) {
+        if (n <= 0) throw new IllegalArgumentException("N must be positive");
+        fieldWidth = mode == NDD.LabelMode.BITSET ? Math.min(n, 7) : n;
+        fieldsPerRow = (n + fieldWidth - 1) / fieldWidth;
+        for (int row = 0; row < n; row++) {
+            for (int column = 0; column < n; column += fieldWidth) {
+                NDD.declareField(Math.min(fieldWidth, n - column));
+            }
         }
     }
 
@@ -71,7 +86,7 @@ public class NDDPrimitiveBenchmark {
         /* No one in the same column */
         for (l = 0; l < n; l++) {
             if (l != j) {
-                int mp = NDD.ref(NDD.imp(NDD.getVar(i, j), NDD.getNotVar(i, l)));
+                int mp = NDD.ref(NDD.imp(getVar(i, j), getNotVar(i, l)));
                 a = NDD.andTo(a, mp);
                 NDD.deref(mp);
             }
@@ -80,7 +95,7 @@ public class NDDPrimitiveBenchmark {
         /* No one in the same row */
         for (k = 0; k < n; k++) {
             if (k != i) {
-                int mp = NDD.ref(NDD.imp(NDD.getVar(i, j), NDD.getNotVar(k, j)));
+                int mp = NDD.ref(NDD.imp(getVar(i, j), getNotVar(k, j)));
                 b = NDD.andTo(b, mp);
                 NDD.deref(mp);
             }
@@ -91,7 +106,7 @@ public class NDDPrimitiveBenchmark {
             int ll = k - i + j;
             if (ll >= 0 && ll < n) {
                 if (k != i) {
-                    int mp = NDD.ref(NDD.imp(NDD.getVar(i, j), NDD.getNotVar(k, ll)));
+                    int mp = NDD.ref(NDD.imp(getVar(i, j), getNotVar(k, ll)));
                     c = NDD.andTo(c, mp);
                     NDD.deref(mp);
                 }
@@ -103,7 +118,7 @@ public class NDDPrimitiveBenchmark {
             int ll = i + j - k;
             if (ll >= 0 && ll < n) {
                 if (k != i) {
-                    int mp = NDD.ref(NDD.imp(NDD.getVar(i, j), NDD.getNotVar(k, ll)));
+                    int mp = NDD.ref(NDD.imp(getVar(i, j), getNotVar(k, ll)));
                     d = NDD.andTo(d, mp);
                     NDD.deref(mp);
                 }
@@ -134,7 +149,7 @@ public class NDDPrimitiveBenchmark {
             1 + Math.max(1000, (int) (Math.pow(4.4, n - 6)) * 1000), labelCacheSize, mode);
 
         // declare ndd fields
-        declareFields(n);
+        declareFields(n, mode);
         NDD.generateFields();
 
         int queen;
@@ -145,7 +160,7 @@ public class NDDPrimitiveBenchmark {
             for (int i = 0; i < n; i++) {
                 int condition = NDD.getFalse();
                 for (int j = 0; j < n; j++) {
-                    condition = NDD.orTo(condition, NDD.getVar(i, j));
+                    condition = NDD.orTo(condition, getVar(i, j));
                 }
                 orBatch[i] = condition;
             }
@@ -208,7 +223,7 @@ public class NDDPrimitiveBenchmark {
         boolean rows = RowQueens.requested(args);
         args = RowQueens.arguments(args);
         if (args.length == 0) {
-            System.err.println("Usage: NDDSolution [--bcdd | --zdd] <N> [<N> ...]");
+            System.err.println("Usage: NDDSolution [--bcdd | --zdd | --bitset] <N> [<N> ...]");
             System.exit(1);
         }
 
@@ -220,10 +235,13 @@ public class NDDPrimitiveBenchmark {
         } else if ("--zdd".equals(args[0])) {
             mode = NDD.LabelMode.ZDD;
             startArg = 1;
+        } else if ("--bitset".equals(args[0])) {
+            mode = NDD.LabelMode.BITSET;
+            startArg = 1;
         }
 
         if (startArg >= args.length) {
-            System.err.println("Usage: NDDSolution [--bcdd | --zdd] <N> [<N> ...]");
+            System.err.println("Usage: NDDSolution [--bcdd | --zdd | --bitset] <N> [<N> ...]");
             System.exit(1);
         }
 

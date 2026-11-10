@@ -1,33 +1,41 @@
 {
   "BuDDy": {
+    "path": "libraries/BuDDy",
     "url": "https://github.com/jgcoded/BuDDy.git",
     "revision": "80a142055eb81143cce449debca8700c2299300d"
   },
   "sylvan": {
+    "path": "libraries/sylvan",
     "url": "https://github.com/trolando/sylvan.git",
     "revision": "1ca6868c50c2e481ca60013485faf335dbc7d1c2"
   },
   "cudd": {
+    "path": "libraries/cudd",
     "url": "https://github.com/cuddorg/cudd.git",
     "revision": "e9c5eb4d1bd47b5cb6496bf941b35b6638c976bc"
   },
   "jdd": {
+    "path": "libraries/jdd",
     "url": "https://bitbucket.org/vahidi/jdd.git",
     "revision": "781c64e6c79c53b804b7d957f84e57a3e93f0091"
   },
   "JavaBDD": {
+    "path": "libraries/JavaBDD",
     "url": "https://github.com/com-github-javabdd/com.github.javabdd.git",
     "revision": "a939fc874e426f81233fa68a159cec901b0f0965"
   },
   "oxidd": {
+    "path": "libraries/oxidd",
     "url": "https://github.com/oxidd/oxidd.git",
     "revision": "4a68244fdb79bb678e3c7384c43fee82cbfa916c"
   },
   "jsylvan": {
+    "path": "libraries/jsylvan",
     "url": "https://github.com/utwente-fmt/jsylvan.git",
     "revision": "f97be81a63a7cc1207627841547aa10c82226d04"
   },
   "DecisionDiagrams": {
+    "path": "libraries/DecisionDiagrams",
     "url": "https://github.com/microsoft/DecisionDiagrams.git",
     "revision": "1d18b29c1a3f66b863417ad8b2d264a5e7f84811"
   },
@@ -39,17 +47,17 @@
   "NDD": {
     "url": "https://github.com/XJTU-NetVerify/NDD.git",
     "revision": "9c8eea1e086d84cc23e99eec1b240bb175714044",
-    "path": "NDD"
+    "path": "libraries/NDD"
   },
   "NDD-original": {
     "url": "https://github.com/XJTU-NetVerify/NDD.git",
     "revision": "943476cb4df17d593b28ac7703c0a5d886df847a",
-    "path": "NDD-original"
+    "path": "libraries/NDD-original"
   },
   "NDD-reuse": {
     "url": "https://github.com/XJTU-NetVerify/NDD.git",
     "revision": "0a0811fce50d1d06669e90a7a9779b34dc1a6632",
-    "path": "NDD-reuse"
+    "path": "libraries/NDD-reuse"
   },
   "lace": {
     "url": "https://github.com/trolando/lace.git",

@@ -8,6 +8,6 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <Compile Include="Queens.cs" />
-    <ProjectReference Include="../../DecisionDiagrams/DecisionDiagrams/DecisionDiagrams.csproj" />
+    <ProjectReference Include="../../libraries/DecisionDiagrams/DecisionDiagrams/DecisionDiagrams.csproj" />
   </ItemGroup>
 </Project>

@@ -10,7 +10,7 @@ name = "nqueens"
 path = "nqueens.rs"
 
 [dependencies]
-oxidd = { path = "../../oxidd/crates/oxidd", default-features = false, features = ["manager-index", "bdd", "multi-threading", "apply-cache-direct-mapped"] }
+oxidd = { path = "../../libraries/oxidd/crates/oxidd", default-features = false, features = ["manager-index", "bdd", "multi-threading", "apply-cache-direct-mapped"] }
 
 [profile.release]
 panic = "abort"

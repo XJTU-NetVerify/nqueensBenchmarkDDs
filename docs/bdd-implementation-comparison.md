@@ -201,7 +201,7 @@ libraries are also not interchangeable units of memory.
 ## Current N=8 benchmark data
 
 The following observations come from
-[`results/nqueens_metrics.csv`](../results/nqueens_metrics.csv). Times include
+[`results/pairwise/nqueens_metrics.csv`](../results/pairwise/nqueens_metrics.csv). Times include
 process startup and metrics output. These are single-run observations, not
 averages over repeated trials. The full dataset covers N=8 through N=13 with
 two Sylvan workers and a 500-second timeout.

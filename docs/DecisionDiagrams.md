@@ -50,7 +50,7 @@ DecisionDiagrams 是微软开源的原生 .NET 决策图库，专注于高性能
 ### 源码结构
 
 ```
-DecisionDiagrams/
+libraries/DecisionDiagrams/
 ├── DecisionDiagrams/          # 核心库
 │   ├── DD.cs                  # 用户持有的外部句柄
 │   ├── DDIndex.cs             # 内部指针 (32位, 含补边标记)

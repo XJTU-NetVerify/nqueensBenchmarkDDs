@@ -1,3 +1,15 @@
 {
-    "java.compile.nullAnalysis.mode": "disabled"
+    "java.compile.nullAnalysis.mode": "disabled",
+    "java.import.maven.enabled": true,
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.metadata/**",
+        "**/archetype-resources/**",
+        "**/META-INF/maven/**",
+        "**/.venv/**",
+        "**/.bench-build/**",
+        "**/.m2/**",
+        "**/libraries/NDD-original/**",
+        "**/libraries/NDD-reuse/**"
+    ]
 }

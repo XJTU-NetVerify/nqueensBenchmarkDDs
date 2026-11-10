@@ -180,5 +180,5 @@ def executable(name):
 def ndd_command(name, size, mode=None):
     klass = "NDDPrimitiveBenchmark" if name == "NDD" else "NDDObjectBenchmark"
     return ["java", "-cp", os.pathsep.join([str(BUILD / name / "classes"),
-            str(ROOT / name / "target" / JAR)]), "benchmark." + klass,
+            str(ROOT / LOCK[name]["path"] / "target" / JAR)]), "benchmark." + klass,
             *([mode] if mode else []), str(size)]

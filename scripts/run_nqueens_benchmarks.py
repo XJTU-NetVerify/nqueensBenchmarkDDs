@@ -374,7 +374,7 @@ def parse_args():
         "--output",
         type=Path,
         default=None,
-        help="CSV path (default: results/nqueens_metrics.csv, or results/rows/nqueens_metrics.csv for --benchmark rows)",
+        help="CSV path (default: results/<benchmark>/nqueens_metrics.csv)",
     )
     parser.add_argument(
         "--targets",
@@ -391,7 +391,7 @@ def parse_args():
     if args.ndd_cache_size <= 0 or args.ndd_label_cache_size <= 0:
         parser.error("NDD cache sizes must be positive")
     if args.output is None:
-        args.output = RESULTS_DIR / ("rows/nqueens_metrics.csv" if args.benchmark == "rows" else "nqueens_metrics.csv")
+        args.output = RESULTS_DIR / args.benchmark / "nqueens_metrics.csv"
     return args
 
 

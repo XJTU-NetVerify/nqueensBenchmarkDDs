@@ -4,7 +4,7 @@
 Simple visualization helper for the aggregated CSV produced by run_nqueens_benchmarks.py
 
 Usage:
-    python scripts/plot_nqueens_results.py --input results/nqueens_metrics.csv --output results
+    python scripts/plot_nqueens_results.py --input results/pairwise/nqueens_metrics.csv --output results/pairwise
 """
 
 import argparse
@@ -206,8 +206,10 @@ def plot_all_metrics(rows, output_dir):
 def main():
     parser = argparse.ArgumentParser(description="Plot N-Queens benchmark metrics.")
     parser.add_argument("--input", type=Path, required=True, help="CSV file produced by run_nqueens_benchmarks.py")
-    parser.add_argument("--output", type=Path, default=Path("results"), help="Directory to store plots (default: results)")
+    parser.add_argument("--output", type=Path, help="Directory to store plots (default: input CSV directory)")
     args = parser.parse_args()
+    if args.output is None:
+        args.output = args.input.parent
 
     rows = read_rows(args.input)
     args.output.mkdir(parents=True, exist_ok=True)

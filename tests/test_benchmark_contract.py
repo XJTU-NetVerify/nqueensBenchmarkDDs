@@ -1,4 +1,5 @@
 import csv
+import configparser
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,28 @@ from benchmarks import build
 
 
 class MetricsContractTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith("linux") and build.executable("NDD").is_file(),
+                         "Built maintained NDD adapter on Linux required")
+    def test_bitset_field_width_boundary(self):
+        for strategy in ("pairwise", "rows"):
+            for size in (7, 8):
+                with self.subTest(strategy=strategy, size=size):
+                    command = build.ndd_command("NDD", size, "--bitset")
+                    if strategy == "rows":
+                        command.append("--rows")
+                    output = subprocess.check_output(command, cwd=ROOT, text=True, timeout=30)
+                    self.assertEqual(runner.parse_metrics(output)["solutions"],
+                                     runner.EXPECTED_SOLUTIONS[size])
+
+    def test_imported_library_paths_match_submodules(self):
+        modules = configparser.ConfigParser()
+        modules.read(ROOT / ".gitmodules")
+        paths = {modules[section]["path"] for section in modules.sections()}
+        primary = {name for name in build.LOCK if name not in ("lace", "jsylvan-native")}
+        self.assertEqual(paths, {build.LOCK[name]["path"] for name in primary})
+        for name in primary:
+            self.assertEqual(build.LOCK[name]["path"], "libraries/" + name)
+
     def test_ndd_tuning_arguments(self):
         with patch.object(sys, "argv", ["benchmark", "--benchmark", "rows",
                 "--ndd-cache-size", "1000000",
@@ -49,7 +72,7 @@ class MetricsContractTests(unittest.TestCase):
         with patch.object(sys, "argv", ["benchmark", "--benchmark", "rows"]):
             self.assertEqual(runner.parse_args().output, ROOT / "results/rows/nqueens_metrics.csv")
         with patch.object(sys, "argv", ["benchmark"]):
-            self.assertEqual(runner.parse_args().output, ROOT / "results/nqueens_metrics.csv")
+            self.assertEqual(runner.parse_args().output, ROOT / "results/pairwise/nqueens_metrics.csv")
 
     @unittest.skipUnless(sys.platform.startswith("linux") and all(build.executable(name).is_file()
         for name in ("buddy", "sylvan", "cudd", "oxidd", "jdd", "javabdd", "jsylvan",

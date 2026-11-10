@@ -1,0 +1,43 @@
+{
+  "benchmark": "rows",
+  "sizes": [
+    13
+  ],
+  "targets": [
+    "NDD-BITSET"
+  ],
+  "timeout_sec": 100,
+  "date": "2026-11-10",
+  "label_mode": "BITSET",
+  "field_widths": [
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6,
+    7,
+    6
+  ],
+  "variable_order": "row-major, each row split into 7-bit and 6-bit fields; no padding",
+  "ndd_cache_size": 1000000,
+  "ndd_label_cache_size": 100000
+}

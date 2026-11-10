@@ -4,7 +4,7 @@ Compare N-Queens construction across native C/C++, Java, and .NET decision
 diagram libraries. Each run records elapsed time, peak memory, available node
 counters, and the solution count.
 
-Primary libraries are Git submodules pinned to upstream commits. Benchmark
+Primary libraries live under `libraries/` as Git submodules pinned to upstream commits. Benchmark
 adapters live in [`benchmarks/`](benchmarks/README.md), separate from upstream
 source. Exact source URLs and revisions, including build dependencies, are
 recorded in [`benchmarks/upstream-lock.json`](benchmarks/upstream-lock.json).
@@ -54,13 +54,13 @@ python3 -m venv .venv
 From PowerShell at the repository root, reproduce the retained benchmark:
 
 ```powershell
-.\scripts\run_nqueens_wsl.ps1 --workers 2 --output results/nqueens_metrics.csv
+.\scripts\run_nqueens_wsl.ps1 --workers 2 --output results/pairwise/nqueens_metrics.csv
 ```
 
 From Linux, with Java 17 and the other tools on `PATH`:
 
 ```bash
-python3 scripts/run_nqueens_benchmarks.py --workers 2 --output results/nqueens_metrics.csv
+python3 scripts/run_nqueens_benchmarks.py --workers 2 --output results/pairwise/nqueens_metrics.csv
 ```
 
 Use `.venv/bin/python` in place of `python3` if using the virtual environment.
@@ -75,7 +75,7 @@ CSV, and generates two log-scale plots in the CSV's directory. An output path un
 | `--targets` | 14 targets below | Select target names; `all` adds standalone ZDD |
 | `--workers` | `0` | Sylvan/JSylvan/OxiDD workers; 0 enables autodetection |
 | `--timeout` | `500` | Timeout in seconds for each implementation and size |
-| `--output` | `results/nqueens_metrics.csv` | CSV path; plots go beside it |
+| `--output` | `results/pairwise/nqueens_metrics.csv` | CSV path; plots go beside it |
 | `--skip-build` | Off | Reuse existing build artifacts |
 
 For a quick run that preserves the retained results:
@@ -115,21 +115,21 @@ all 15 targets. NDD targets appear last in the default run order.
 
 | Target | Source directory | Implementation |
 | --- | --- | --- |
-| `BuDDy` | `BuDDy/` | Native BDD |
-| `Sylvan` | `sylvan/` | Parallel native BDD |
-| `CUDD` | `cudd/` | Native BDD |
-| `OxiDD` | `oxidd/` | Rust BDD with index-based manager |
-| `JDD` | `jdd/` | Java BDD |
-| `JavaBDD` | `JavaBDD/` | Pure Java BDD (`JFactory`) |
-| `ZDD` | `jdd/` | Java ZDD; explicit selection only |
-| `JSylvan` | `jsylvan/` | Java binding to native Sylvan |
-| `DD-BDD` | `DecisionDiagrams/` | .NET BDD |
-| `DD-CBDD` | `DecisionDiagrams/` | .NET chain-reduced BDD |
-| `NDD-original` | `NDD-original/` | Object-based NDD from upstream `ndd-original` |
-| `NDD` | `NDD/` | Maintained NDD with BDD labels |
-| `NDD-BCDD` | `NDD/` | Maintained NDD with `COMPLEMENTED_BDD` labels |
-| `NDD-ZDD` | `NDD/` | Maintained NDD with ZDD labels |
-| `NDD-reuse` | `NDD-reuse/` | Object-based NDD from upstream `reuse` |
+| `BuDDy` | `libraries/BuDDy/` | Native BDD |
+| `Sylvan` | `libraries/sylvan/` | Parallel native BDD |
+| `CUDD` | `libraries/cudd/` | Native BDD |
+| `OxiDD` | `libraries/oxidd/` | Rust BDD with index-based manager |
+| `JDD` | `libraries/jdd/` | Java BDD |
+| `JavaBDD` | `libraries/JavaBDD/` | Pure Java BDD (`JFactory`) |
+| `ZDD` | `libraries/jdd/` | Java ZDD; explicit selection only |
+| `JSylvan` | `libraries/jsylvan/` | Java binding to native Sylvan |
+| `DD-BDD` | `libraries/DecisionDiagrams/` | .NET BDD |
+| `DD-CBDD` | `libraries/DecisionDiagrams/` | .NET chain-reduced BDD |
+| `NDD-original` | `libraries/NDD-original/` | Object-based NDD from upstream `ndd-original` |
+| `NDD` | `libraries/NDD/` | Maintained NDD with BDD labels |
+| `NDD-BCDD` | `libraries/NDD/` | Maintained NDD with `COMPLEMENTED_BDD` labels |
+| `NDD-ZDD` | `libraries/NDD/` | Maintained NDD with ZDD labels |
+| `NDD-reuse` | `libraries/NDD-reuse/` | Object-based NDD from upstream `reuse` |
 
 All eleven source directories are submodules. The three maintained NDD modes
 share one library build. JSylvan uses pinned Sylvan 1.4.1; standalone Sylvan
@@ -138,7 +138,7 @@ build details, and counter APIs.
 
 ## Current results
 
-[`results/nqueens_metrics.csv`](results/nqueens_metrics.csv) contains the retained
+[`results/pairwise/nqueens_metrics.csv`](results/pairwise/nqueens_metrics.csv) contains the retained
 N=8 through N=13 results across the 14 default targets, with two workers for
 Sylvan, JSylvan, and OxiDD and a 500-second timeout. Of 84 runs, 83 returned the expected solution count;
 BuDDy timed out at N=13. Every completed N=13 run returned 73,712 solutions.
@@ -178,17 +178,17 @@ not a completed execution time.*
 
 The pairwise CSV has two plots with logarithmic vertical axes:
 
-- [Execution time (log scale)](results/nqueens_time_sec_log.png)
-- [Peak memory usage (log scale)](results/nqueens_max_rss_kb_log.png)
+- [Execution time (log scale)](results/pairwise/nqueens_time_sec_log.png)
+- [Peak memory usage (log scale)](results/pairwise/nqueens_max_rss_kb_log.png)
 
-![Execution time for N=8 through N=13 (log scale)](results/nqueens_time_sec_log.png)
+![Execution time for N=8 through N=13 (log scale)](results/pairwise/nqueens_time_sec_log.png)
 
-![Peak memory usage for N=8 through N=13 (log scale)](results/nqueens_max_rss_kb_log.png)
+![Peak memory usage for N=8 through N=13 (log scale)](results/pairwise/nqueens_max_rss_kb_log.png)
 
 To regenerate plots without rerunning the benchmark:
 
 ```bash
-python3 scripts/plot_nqueens_results.py --input results/nqueens_metrics.csv --output results
+python3 scripts/plot_nqueens_results.py --input results/pairwise/nqueens_metrics.csv --output results/pairwise
 ```
 
 ## Row construction benchmark
@@ -225,11 +225,12 @@ not contain a complete N=13 comparison. Its metadata records the requested
 N=8–13 range, while the CSV records the sizes actually saved.
 
 Separate NDD-only N=13 experiments are available for
-[default caches with a 100-second timeout](results/rows/ndd-n13-timeout100-2026-11-10/nqueens_metrics.csv)
-and [larger caches](results/rows/ndd-cache1m-label100k-2026-11-10/nqueens_metrics.csv).
+[default caches with a 100-second timeout](results/experiments/rows-default-cache/nqueens_metrics.csv)
+and [larger caches](results/experiments/rows-large-cache/nqueens_metrics.csv).
 The latter includes N=12 and N=13 for the three maintained NDD label modes.
-Their settings and plots are stored alongside each CSV; these configurations
-are separate from the main comparison.
+Their settings are stored alongside each CSV; these configurations are separate
+from the main comparison. See the [results index](results/README.md) for all
+retained measurements and instructions to regenerate experiment plots.
 
 `--sizes`, `--targets`, `--timeout`, `--output`,
 and `--skip-build` work for both strategies. Standalone JDD `ZDD` remains optional
@@ -247,7 +248,7 @@ differ from the external suite's own executables. Charts continue to show full
 process time; `solver_time_sec` is retained where the adapter reports it.
 Failed row runs have `status=error`, blank solution/node fields, and are omitted
 from plots. Completed sizes are saved incrementally. The original `pairwise`
-benchmark remains the default and writes to its original output path.
+benchmark remains the default and writes to `results/pairwise/`.
 
 ![Row construction execution time (log scale)](results/rows/nqueens_time_sec_log.png)
 
@@ -275,7 +276,7 @@ benchmark remains the default and writes to its original output path.
 See [measurement details](benchmarks/README.md#measurements) and the
 [implementation comparison](docs/bdd-implementation-comparison.md) for context.
 
-## Validation and archived code
+## Validation
 
 Run the benchmark contract tests in the configured Python environment:
 
@@ -283,8 +284,7 @@ Run the benchmark contract tests in the configured Python environment:
 python3 -m unittest discover -s tests -v
 ```
 
-The historical SoA project remains under [`deprecated/NDD-SoA/`](deprecated/NDD-SoA/).
-Its targets have been removed from the runner, including `--targets all`.
-`NDD` and `NDD-BCDD` replace the corresponding SoA variants. The archived
+The historical SoA project was removed. Its source remains available in Git
+history. `NDD` and `NDD-BCDD` replace the corresponding SoA variants; the former
 finite-domain ZDD experiment has no direct equivalent in the maintained Boolean
-ZDD label mode. See [`deprecated/README.md`](deprecated/README.md).
+ZDD label mode.

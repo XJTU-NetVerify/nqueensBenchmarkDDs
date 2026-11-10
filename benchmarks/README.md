@@ -1,9 +1,9 @@
 # Repository-owned benchmark adapters
 
-Active library checkouts contain pinned upstream source. N-Queens drivers,
+Active library checkouts under `libraries/` contain pinned upstream source. N-Queens drivers,
 metrics, JNI build configuration, and adapter build logic live here. The custom SoA
-implementations are archived under `deprecated/NDD-SoA` and are not registered
-in the runner.
+implementations were removed and remain available in Git history. They are not
+registered in the runner.
 
 `upstream-lock.json` records canonical URLs and exact revisions. The library
 submodules use pre-benchmark upstream baselines compatible with the original
@@ -57,13 +57,21 @@ have equivalent implementations in their adapters. Algorithm provenance is in
 [`common/row-construction.json`](common/row-construction.json), and the upstream
 MIT notice is retained in [`licenses/bdd-benchmark-MIT.txt`](licenses/bdd-benchmark-MIT.txt).
 Library pins and initialization remain shared between the two strategies.
-Row runs write to `results/rows/` by default; the CSV includes a `benchmark` column.
+Runs write to `results/pairwise/` or `results/rows/` by default; the CSV includes
+a `benchmark` column.
 
 For maintained `NDD`, `NDD-BCDD`, and `NDD-ZDD`, operation cache capacities can
 be set with `--ndd-cache-size` and `--ndd-label-cache-size` (both default to
 10,000 entries). These options do not change original/reuse caches. Row-run
 metadata records both capacities. For example, add
 `--ndd-cache-size 1000000 --ndd-label-cache-size 100000` to test larger caches.
+
+The maintained Java adapter also accepts `--bitset` directly. BITSET splits
+each board row into consecutive fields of at most seven bits (N=13 uses
+13 pairs of 7-bit and 6-bit fields). No padding variables are added. Both
+pairwise and `--rows` construction use the same coordinate mapping. This mode
+is experimental and is not registered among the runner's default targets;
+its field grouping differs from the ordinary NDD comparisons.
 
 - `time_sec`: process elapsed wall time for every implementation, including
   runtime startup and metrics output. `solver_time_sec` separately retains an

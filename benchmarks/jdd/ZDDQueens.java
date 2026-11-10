@@ -109,6 +109,7 @@ public class ZDDQueens extends ZDD2 {
 	}
 
 	public static void main(String [] args) {
+        if (benchmark.common.RowQueens.requested(args)) { RowZDDQueens.main(args); return; }
 		for(String str :args) {
 			final int n = Integer.parseInt(str );
 

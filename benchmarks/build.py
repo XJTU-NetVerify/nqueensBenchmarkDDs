@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -11,8 +12,8 @@ BUILD = ROOT / ".bench-build"
 LOCK = json.loads((ADAPTERS / "upstream-lock.json").read_text())
 JAR = "ndd-1.0.1-jar-with-dependencies.jar"
 TARGET_SOURCES = {
-    "BuDDy": "BuDDy", "Sylvan": "sylvan", "CUDD": "cudd",
-    "JDD": "jdd", "ZDD": "jdd", "JSylvan": "jsylvan",
+    "BuDDy": "BuDDy", "Sylvan": "sylvan", "CUDD": "cudd", "OxiDD": "oxidd",
+    "JDD": "jdd", "ZDD": "jdd", "JavaBDD": "JavaBDD", "JSylvan": "jsylvan",
     "DD-BDD": "DecisionDiagrams", "DD-CBDD": "DecisionDiagrams",
     "NDD": "NDD", "NDD-BCDD": "NDD", "NDD-ZDD": "NDD",
     "NDD-original": "NDD-original", "NDD-reuse": "NDD-reuse",
@@ -68,10 +69,12 @@ def prepare(name, run, jobs):
     directory = BUILD / name
     directory.mkdir(parents=True, exist_ok=True)
     repo_name = {"buddy": "BuDDy", "sylvan": "sylvan", "cudd": "cudd",
-                 "jdd": "jdd", "jsylvan": "jsylvan", "decisiondiagrams": "DecisionDiagrams"}.get(name, name)
+                 "jdd": "jdd", "javabdd": "JavaBDD", "jsylvan": "jsylvan", "decisiondiagrams": "DecisionDiagrams"}.get(name, name)
     upstream = source(repo_name)
     adapter_dir = ADAPTERS / ("ndd" if name.startswith("NDD") else name)
     inputs = [p for p in adapter_dir.rglob("*") if p.is_file() and "obj" not in p.parts]
+    common = sorted(path for path in (ADAPTERS / "common").glob("*") if path.is_file())
+    inputs.extend(common)
     artifact = executable(name)
     ready, stamp, key = cached(name, artifact, inputs)
     if ready:
@@ -99,6 +102,16 @@ def prepare(name, run, jobs):
             run(["gcc", "-O3", "-I" + str(library), "-I" + str(upstream / "cudd"),
                  str(adapter_dir / "nqueens.c"), str(library / "cudd/.libs/libcudd.a"),
                  "-lm", "-o", str(artifact)])
+    elif name == "oxidd":
+        env = os.environ.copy()
+        cargo = shutil.which("cargo")
+        if cargo is None:
+            local = BUILD / "tools"
+            cargo = str(local / "cargo/bin/cargo")
+            env.update(CARGO_HOME=str(local / "cargo"), RUSTUP_HOME=str(local / "rustup"))
+            env["PATH"] = str(local / "cargo/bin") + os.pathsep + env["PATH"]
+        run([cargo, "build", "--release", "--locked", "--manifest-path", str(adapter_dir / "Cargo.toml"),
+             "--target-dir", str(directory), "-j", str(jobs)], env=env)
     elif name == "sylvan":
         lace = dependency("lace", run)
         run(["cmake", "-S", str(adapter_dir), "-B", str(directory),
@@ -106,10 +119,11 @@ def prepare(name, run, jobs):
              "-DFETCHCONTENT_SOURCE_DIR_LACE=" + str(lace),
              "-DSYLVAN_BUILD_TESTS=OFF", "-DSYLVAN_BUILD_EXAMPLES=OFF", "-DCMAKE_BUILD_TYPE=Release"])
         run(["cmake", "--build", str(directory), "--target", "nqueens", f"-j{jobs}"])
-    elif name == "jdd":
+    elif name in ("jdd", "javabdd"):
         classes = directory / "classes"
         classes.mkdir(exist_ok=True)
-        paths = sorted((upstream / "src").rglob("*.java")) + sorted(adapter_dir.glob("*.java"))
+        source_dir = upstream / ("src/main/java" if name == "javabdd" else "src")
+        paths = sorted(source_dir.rglob("*.java")) + sorted(adapter_dir.glob("*.java")) + [ADAPTERS / "common/RowQueens.java"]
         run(["javac", "-encoding", "UTF-8", "-d", str(classes), java_sources_file(name, paths)])
     elif name == "jsylvan":
         native = dependency("jsylvan-native", run)
@@ -120,7 +134,7 @@ def prepare(name, run, jobs):
         run(["cmake", "--build", str(core), "--target", "sylvan", f"-j{jobs}"])
         classes = directory / "classes"
         classes.mkdir(exist_ok=True)
-        paths = sorted((upstream / "src/main/java").rglob("*.java")) + [adapter_dir / "JSylvanNQueens.java"]
+        paths = sorted((upstream / "src/main/java").rglob("*.java")) + [adapter_dir / "JSylvanNQueens.java", ADAPTERS / "common/RowQueens.java"]
         run(["javac", "-encoding", "UTF-8", "-d", str(classes), java_sources_file(name, paths)])
         run(["cmake", "-S", str(adapter_dir), "-B", str(directory / "jni"),
              "-DUPSTREAM_ROOT=" + str(upstream), "-DSYLVAN_ROOT=" + str(native),
@@ -139,7 +153,7 @@ def prepare(name, run, jobs):
         bridge = [] if name == "NDD" else [str(adapter_dir /
                   ("original" if name == "NDD-original" else "reuse") / "BackendFields.java")]
         run(["javac", "-cp", str(upstream / "target" / JAR), "-d", str(classes),
-             str(adapter_dir / java), *bridge])
+             str(adapter_dir / java), str(ADAPTERS / "common/RowQueens.java"), *bridge])
     else:
         raise ValueError(name)
     stamp.write_text(key)
@@ -147,6 +161,10 @@ def prepare(name, run, jobs):
 
 
 def executable(name):
+    if name == "oxidd":
+        return BUILD / name / "release/nqueens"
+    if name == "javabdd":
+        return BUILD / name / "classes/benchmark/javabdd/JavaBDDQueens.class"
     if name == "jdd":
         return BUILD / name / "classes/benchmark/jdd/BDDQueens.class"
     if name == "jsylvan":

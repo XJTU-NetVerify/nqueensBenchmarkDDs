@@ -3,10 +3,26 @@ package benchmark;
 import java.util.*;
 import jdd.bdd.BDD;
 
+import benchmark.common.RowQueens;
 import org.ants.jndd.diagram.NDD;
 
 public class NDDObjectBenchmark {
     public static final int NDD_TABLE_SIZE = 100000000;
+
+    private static NDD solveRows(final int n) {
+        return RowQueens.solve(n, new RowQueens.Ops<NDD>() {
+            public NDD one() { return NDD.ref(NDD.getTrue()); }
+            public NDD zero() { return NDD.ref(NDD.getFalse()); }
+            public NDD step(int v, int value, NDD tail) {
+                if (value < 0) return NDD.ref(tail);
+                return NDD.ref(NDD.and(value == 1 ? NDD.getVar(v / n, v % n)
+                    : NDD.getNotVar(v / n, v % n), tail));
+            }
+            public NDD and(NDD a, NDD b) { return NDD.ref(NDD.and(a, b)); }
+            public NDD or(NDD a, NDD b) { return NDD.ref(NDD.or(a, b)); }
+            public void drop(NDD value) { NDD.deref(value); }
+        });
+    }
 
     // declare n fields, n bits per field
     private static void declareFields(int n) {
@@ -71,7 +87,9 @@ public class NDDObjectBenchmark {
         impBatch[i][j] = a;
     }
 
-    public static void solve(int n) {
+    public static void solve(int n) { solve(n, false); }
+
+    public static void solve(int n, boolean rows) {
         long startNanos = System.nanoTime();
         // init NDD library
         NDD.initNDD(NDD_TABLE_SIZE, 1 + Math.max(1000, (int) (Math.pow(4.4, n - 6)) * 1000), 10000);
@@ -80,33 +98,36 @@ public class NDDObjectBenchmark {
         // declare ndd fields
         declareFields(n);
 
-        NDD[] orBatch = new NDD[n];
-        NDD[][] impBatch = new NDD[n][n];
+        NDD queen;
+        if (rows) { queen = solveRows(n); } else {
+            NDD[] orBatch = new NDD[n];
+            NDD[][] impBatch = new NDD[n][n];
 
-        for (int i = 0; i < n; i++) {
-            NDD condition = NDD.getFalse();
-            for (int j = 0; j < n; j++) {
-                condition = NDD.orTo(condition, NDD.getVar(i, j));
+            for (int i = 0; i < n; i++) {
+                NDD condition = NDD.getFalse();
+                for (int j = 0; j < n; j++) {
+                    condition = NDD.orTo(condition, NDD.getVar(i, j));
+                }
+                orBatch[i] = condition;
             }
-            orBatch[i] = condition;
-        }
 
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                build(i, j, n, impBatch);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    build(i, j, n, impBatch);
+                }
             }
-        }
 
-        NDD queen = NDD.getTrue();
+            queen = NDD.getTrue();
 
-        for (int i = 0; i < n; i++) {
-            queen = NDD.andTo(queen, orBatch[i]);
-            NDD.deref(orBatch[i]);
-        }
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                queen = NDD.andTo(queen, impBatch[i][j]);
-                NDD.deref(impBatch[i][j]);
+            for (int i = 0; i < n; i++) {
+                queen = NDD.andTo(queen, orBatch[i]);
+                NDD.deref(orBatch[i]);
+            }
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    queen = NDD.andTo(queen, impBatch[i][j]);
+                    NDD.deref(impBatch[i][j]);
+                }
             }
         }
         double solutions = NDD.satCount(queen);
@@ -115,8 +136,10 @@ public class NDDObjectBenchmark {
     }
 
     public static void main(String[] args) {
+        boolean rows = RowQueens.requested(args);
+        args = RowQueens.arguments(args);
         if (args.length != 1) throw new IllegalArgumentException("Usage: NDDObjectBenchmark <N>");
-        solve(Integer.parseInt(args[0]));
+        solve(Integer.parseInt(args[0]), rows);
     }
 
     private static void report(int size, NDD root, double solutions, double seconds) {

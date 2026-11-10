@@ -3,6 +3,20 @@
 #include <stdlib.h>
 #include "cudd.h"
 
+#include "../common/row_args.h"
+static DdNode *row_ref(DdNode *node) { Cudd_Ref(node); return node; }
+#define ROW_HANDLE DdNode *
+#define ROW_MANAGER ((DdManager *)context)
+#define ROW_ONE() row_ref(Cudd_ReadOne(ROW_MANAGER))
+#define ROW_ZERO() row_ref(Cudd_ReadLogicZero(ROW_MANAGER))
+#define ROW_FALSE Cudd_ReadLogicZero(ROW_MANAGER)
+#define ROW_BRANCH(v, hi, lo) row_ref(Cudd_bddIte(ROW_MANAGER, Cudd_bddIthVar(ROW_MANAGER, v), hi, lo))
+#define ROW_AND(a, b) row_ref(Cudd_bddAnd(ROW_MANAGER, a, b))
+#define ROW_OR(a, b) row_ref(Cudd_bddOr(ROW_MANAGER, a, b))
+#define ROW_DROP(x) Cudd_RecursiveDeref(ROW_MANAGER, x)
+#include "../common/row_queens.h"
+
+
 static inline size_t idx(size_t n, size_t row, size_t col)
 {
     return row * n + col;
@@ -28,6 +42,7 @@ static DdNode* or_update(DdManager *mgr, DdNode *lhs, DdNode *rhs)
 
 int main(int argc, char **argv)
 {
+    argc = row_args(argc, argv);
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <N>\n", argv[0]);
         return EXIT_FAILURE;
@@ -61,93 +76,98 @@ int main(int argc, char **argv)
     DdNode *queen = Cudd_ReadOne(mgr);
     Cudd_Ref(queen);
 
-    /* Ensure at least one queen per row */
-    for (int row = 0; row < N; ++row) {
-        DdNode *clause = Cudd_ReadLogicZero(mgr);
-        Cudd_Ref(clause);
-        for (int col = 0; col < N; ++col) {
-            DdNode *var = board[idx(N, row, col)];
-            DdNode *tmp = Cudd_bddOr(mgr, clause, var);
-            Cudd_Ref(tmp);
-            Cudd_RecursiveDeref(mgr, clause);
-            clause = tmp;
-        }
-        DdNode *combined = Cudd_bddAnd(mgr, queen, clause);
-        Cudd_Ref(combined);
+    if (row_mode) {
         Cudd_RecursiveDeref(mgr, queen);
-        Cudd_RecursiveDeref(mgr, clause);
-        queen = combined;
+        queen = row_queens(N, mgr);
     }
-
-    /* Build safety constraints for each position */
-    for (int i = 0; i < N; ++i) {
-        for (int j = 0; j < N; ++j) {
-            DdNode *a = Cudd_ReadOne(mgr);
-            DdNode *b = Cudd_ReadOne(mgr);
-            DdNode *c = Cudd_ReadOne(mgr);
-            DdNode *d = Cudd_ReadOne(mgr);
-            Cudd_Ref(a);
-            Cudd_Ref(b);
-            Cudd_Ref(c);
-            Cudd_Ref(d);
-
-            DdNode *target = board[idx(N, i, j)];
-
-            for (int l = 0; l < N; ++l) {
-                if (l == j) continue;
-                DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, i, l)]));
-                Cudd_Ref(pair);
-                a = and_update(mgr, a, pair);
+    else {
+        /* Ensure at least one queen per row */
+        for (int row = 0; row < N; ++row) {
+            DdNode *clause = Cudd_ReadLogicZero(mgr);
+            Cudd_Ref(clause);
+            for (int col = 0; col < N; ++col) {
+                DdNode *var = board[idx(N, row, col)];
+                DdNode *tmp = Cudd_bddOr(mgr, clause, var);
+                Cudd_Ref(tmp);
+                Cudd_RecursiveDeref(mgr, clause);
+                clause = tmp;
             }
-
-            for (int k = 0; k < N; ++k) {
-                if (k == i) continue;
-                DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, j)]));
-                Cudd_Ref(pair);
-                b = and_update(mgr, b, pair);
-            }
-
-            for (int k = 0; k < N; ++k) {
-                int ll = k - i + j;
-                if (ll >= 0 && ll < N && k != i) {
-                    DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, ll)]));
-                    Cudd_Ref(pair);
-                    c = and_update(mgr, c, pair);
-                }
-            }
-
-            for (int k = 0; k < N; ++k) {
-                int ll = i + j - k;
-                if (ll >= 0 && ll < N && k != i) {
-                    DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, ll)]));
-                    Cudd_Ref(pair);
-                    d = and_update(mgr, d, pair);
-                }
-            }
-
-            DdNode *cd = Cudd_bddAnd(mgr, c, d);
-            Cudd_Ref(cd);
-            Cudd_RecursiveDeref(mgr, c);
-            Cudd_RecursiveDeref(mgr, d);
-
-            DdNode *bc = Cudd_bddAnd(mgr, b, cd);
-            Cudd_Ref(bc);
-            Cudd_RecursiveDeref(mgr, b);
-            Cudd_RecursiveDeref(mgr, cd);
-
-            DdNode *ab = Cudd_bddAnd(mgr, a, bc);
-            Cudd_Ref(ab);
-            Cudd_RecursiveDeref(mgr, a);
-            Cudd_RecursiveDeref(mgr, bc);
-
-            DdNode *combined = Cudd_bddAnd(mgr, queen, ab);
+            DdNode *combined = Cudd_bddAnd(mgr, queen, clause);
             Cudd_Ref(combined);
             Cudd_RecursiveDeref(mgr, queen);
-            Cudd_RecursiveDeref(mgr, ab);
+            Cudd_RecursiveDeref(mgr, clause);
             queen = combined;
         }
-    }
 
+        /* Build safety constraints for each position */
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < N; ++j) {
+                DdNode *a = Cudd_ReadOne(mgr);
+                DdNode *b = Cudd_ReadOne(mgr);
+                DdNode *c = Cudd_ReadOne(mgr);
+                DdNode *d = Cudd_ReadOne(mgr);
+                Cudd_Ref(a);
+                Cudd_Ref(b);
+                Cudd_Ref(c);
+                Cudd_Ref(d);
+
+                DdNode *target = board[idx(N, i, j)];
+
+                for (int l = 0; l < N; ++l) {
+                    if (l == j) continue;
+                    DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, i, l)]));
+                    Cudd_Ref(pair);
+                    a = and_update(mgr, a, pair);
+                }
+
+                for (int k = 0; k < N; ++k) {
+                    if (k == i) continue;
+                    DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, j)]));
+                    Cudd_Ref(pair);
+                    b = and_update(mgr, b, pair);
+                }
+
+                for (int k = 0; k < N; ++k) {
+                    int ll = k - i + j;
+                    if (ll >= 0 && ll < N && k != i) {
+                        DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, ll)]));
+                        Cudd_Ref(pair);
+                        c = and_update(mgr, c, pair);
+                    }
+                }
+
+                for (int k = 0; k < N; ++k) {
+                    int ll = i + j - k;
+                    if (ll >= 0 && ll < N && k != i) {
+                        DdNode *pair = Cudd_bddOr(mgr, Cudd_Not(target), Cudd_Not(board[idx(N, k, ll)]));
+                        Cudd_Ref(pair);
+                        d = and_update(mgr, d, pair);
+                    }
+                }
+
+                DdNode *cd = Cudd_bddAnd(mgr, c, d);
+                Cudd_Ref(cd);
+                Cudd_RecursiveDeref(mgr, c);
+                Cudd_RecursiveDeref(mgr, d);
+
+                DdNode *bc = Cudd_bddAnd(mgr, b, cd);
+                Cudd_Ref(bc);
+                Cudd_RecursiveDeref(mgr, b);
+                Cudd_RecursiveDeref(mgr, cd);
+
+                DdNode *ab = Cudd_bddAnd(mgr, a, bc);
+                Cudd_Ref(ab);
+                Cudd_RecursiveDeref(mgr, a);
+                Cudd_RecursiveDeref(mgr, bc);
+
+                DdNode *combined = Cudd_bddAnd(mgr, queen, ab);
+                Cudd_Ref(combined);
+                Cudd_RecursiveDeref(mgr, queen);
+                Cudd_RecursiveDeref(mgr, ab);
+                queen = combined;
+            }
+        }
+    }
     double solutions = Cudd_CountMinterm(mgr, queen, N * N);
     printf("Solutions: %.0f\n", solutions);
 

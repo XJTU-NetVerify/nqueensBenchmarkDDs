@@ -16,7 +16,9 @@ verify the checked-out revisions and reject changes to tracked upstream files
 | `buddy/` | jgcoded/BuDDy | `80a1420` |
 | `sylvan/` | trolando/sylvan 1.9.1 | `1ca6868` |
 | `cudd/` | cuddorg/cudd | `e9c5eb4` |
+| `oxidd/` | oxidd/oxidd | `4a68244` |
 | `jdd/` (BDD and ZDD) | bitbucket.org/vahidi/jdd | `781c64e` |
+| `javabdd/` (JFactory) | com-github-javabdd/com.github.javabdd | `a939fc8` |
 | `jsylvan/` | utwente-fmt/jsylvan | `f97be81` |
 | `decisiondiagrams/` | microsoft/DecisionDiagrams | `1d18b29` |
 | `ndd/NDDPrimitiveBenchmark.java` | XJTU-NetVerify/NDD | `9c8eea1` |
@@ -41,11 +43,27 @@ From PowerShell at the repository root:
 .\scripts\run_nqueens_wsl.ps1 --targets all --sizes 8 10 --workers 2 --timeout 100 --output .bench-build/experiments/smoke/nqueens_metrics.csv
 ```
 
-`--targets all` selects all 13 upstream targets. Add `--skip-build` after a
+`--targets all` selects all 15 upstream targets. Add `--skip-build` after a
 successful build. Tests can be run with
 `python -m unittest discover -s tests -v` using the configured Python environment.
 
 ## Measurements
+
+Both construction strategies are available through the same adapters:
+`--benchmark pairwise` (default) and `--benchmark rows`. The latter ports
+SSoelvsten/bdd-benchmark's row/placement construction at commit `3c521e1` across
+all targets, including NDD. Shared kernels live in `common/`; Rust and .NET
+have equivalent implementations in their adapters. Algorithm provenance is in
+[`common/row-construction.json`](common/row-construction.json), and the upstream
+MIT notice is retained in [`licenses/bdd-benchmark-MIT.txt`](licenses/bdd-benchmark-MIT.txt).
+Library pins and initialization remain shared between the two strategies.
+Row runs write to `results/rows/` by default; the CSV includes a `benchmark` column.
+
+For maintained `NDD`, `NDD-BCDD`, and `NDD-ZDD`, operation cache capacities can
+be set with `--ndd-cache-size` and `--ndd-label-cache-size` (both default to
+10,000 entries). These options do not change original/reuse caches. Row-run
+metadata records both capacities. For example, add
+`--ndd-cache-size 1000000 --ndd-label-cache-size 100000` to test larger caches.
 
 - `time_sec`: process elapsed wall time for every implementation, including
   runtime startup and metrics output. `solver_time_sec` separately retains an
@@ -59,7 +77,7 @@ successful build. Tests can be run with
   terminals or, for primitive NDD, retained nodes after collection.
 - `nodes_created`: lifetime allocations only where an upstream API provides
   them: BuDDy's `bdd_stats.produced`, Sylvan's enabled statistics, and maintained
-  NDD's counters. CUDD, JDD/ZDD, JSylvan and DecisionDiagrams leave this field
+  NDD's counters. CUDD, OxiDD, JDD/ZDD, JavaBDD, JSylvan and DecisionDiagrams leave this field
   blank. A current table size or peak count is not substituted for allocations.
 - `ndd_*` / `bdd_*`: graph-layer splits where available; `bdd_*` denotes label
   nodes for NDD-BCDD and NDD-ZDD as well. Unavailable counters are blank, not zero.
@@ -74,6 +92,23 @@ have identical sizes or that native and JVM process startup costs are equal.
 The Sylvan adapter uses a 2 GiB table budget, and protects intermediate roots
 across library calls. JSylvan defaults to the runner's 2 GiB budget. Worker counts
 are supplied by `--workers` (0 means library autodetection).
+
+JavaBDD uses the pure Java `JFactory` backend, compiled directly from the pinned
+source with Java 17. Its Boolean encoding, variable order (`i * N + j`), initial
+node table (`N * N * 256`), and cache size (10,000) match the BuDDy adapter.
+Automatic variable reordering is not enabled. `nodes_alive` comes from the final
+root's `BDD.nodeCount()`; lifetime allocation counts remain unavailable.
+
+OxiDD uses its native Rust BDD API with the index-based manager, multi-threaded
+apply algorithms, and a direct-mapped apply cache. The fixed capacities are
+2^26 inner nodes and 2^20 apply-cache entries; actual process peak RSS is measured
+by the runner. `--workers` controls its worker pool (0 selects autodetection).
+The Boolean encoding and variable order match BuDDy/JDD; no variable reordering
+is requested. `nodes_alive` is `Function::node_count()`, including terminals.
+Lifetime allocation counts remain unavailable. Release builds require Rust
+1.91 or newer and use the adapter's committed Cargo lock file. Build outputs
+go under `.bench-build/oxidd/`; a local toolchain under `.bench-build/tools/`
+is used when `cargo` is not on `PATH`.
 
 ## Attribution
 

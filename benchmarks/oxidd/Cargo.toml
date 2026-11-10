@@ -1,0 +1,17 @@
+[package]
+name = "nqueens-oxidd-benchmark"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+
+[[bin]]
+name = "nqueens"
+path = "nqueens.rs"
+
+[dependencies]
+oxidd = { path = "../../oxidd/crates/oxidd", default-features = false, features = ["manager-index", "bdd", "multi-threading", "apply-cache-direct-mapped"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1

@@ -4,12 +4,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import jsylvan.JSylvan;
+import benchmark.common.RowQueens;
 
 public final class JSylvanNQueens {
 
     private JSylvanNQueens() {}
 
     private static final class Config {
+        boolean rows = false;
         int workers = 0; // 0 -> Sylvan autodetects cores
         long memoryMb = 512;
         int granularity = 3;
@@ -39,7 +41,7 @@ public final class JSylvanNQueens {
 
         try {
             for (int size : cfg.sizes) {
-                RunResult result = solve(size);
+                RunResult result = solve(size, cfg.rows);
                 System.out.printf("NQUEENS_METRICS n=%d solutions=%.0f nodes_alive=%d%n",
                         size, result.solutions, result.nodesAlive);
             }
@@ -52,6 +54,7 @@ public final class JSylvanNQueens {
         Config cfg = new Config();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
+                case "--rows": cfg.rows = true; break;
                 case "-w":
                 case "--workers":
                     cfg.workers = Integer.parseInt(nextArg(args, ++i, "--workers"));
@@ -90,68 +93,84 @@ public final class JSylvanNQueens {
         System.out.println("  -h, --help             Show this message");
     }
 
-    private static RunResult solve(int size) {
+    private static RunResult solve(final int size, boolean rows) {
         if (size <= 0) {
             throw new IllegalArgumentException("N must be positive");
         }
 
         long[][] board = allocateBoard(size);
-        long queen = JSylvan.ref(JSylvan.getTrue());
+        long queen;
+        if (rows) {
+            queen = RowQueens.solve(size, new RowQueens.Ops<Long>() {
+                public Long one() { return JSylvan.ref(JSylvan.getTrue()); }
+                public Long zero() { return JSylvan.ref(JSylvan.getFalse()); }
+                public Long step(int v, int value, Long tail) {
+                    if (value < 0) return JSylvan.ref(tail);
+                    long zero = JSylvan.getFalse();
+                    return JSylvan.ref(JSylvan.makeIte(board[v / size][v % size],
+                        value == 1 ? tail : zero, value == 0 ? tail : zero));
+                }
+                public Long and(Long a, Long b) { return JSylvan.ref(JSylvan.makeAnd(a, b)); }
+                public Long or(Long a, Long b) { return JSylvan.ref(JSylvan.makeOr(a, b)); }
+                public void drop(Long value) { JSylvan.deref(value); }
+            });
+        } else {
+            queen = JSylvan.ref(JSylvan.getTrue());
 
-        for (int row = 0; row < size; row++) {
-            long clause = JSylvan.ref(JSylvan.getFalse());
-            for (int col = 0; col < size; col++) {
-                long tmp = JSylvan.ref(JSylvan.makeOr(clause, board[row][col]));
-                JSylvan.deref(clause);
-                clause = tmp;
+            for (int row = 0; row < size; row++) {
+                long clause = JSylvan.ref(JSylvan.getFalse());
+                for (int col = 0; col < size; col++) {
+                    long tmp = JSylvan.ref(JSylvan.makeOr(clause, board[row][col]));
+                    JSylvan.deref(clause);
+                    clause = tmp;
+                }
+                queen = andWith(queen, clause);
             }
-            queen = andWith(queen, clause);
-        }
 
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                long a = JSylvan.ref(JSylvan.getTrue());
-                long b = JSylvan.ref(JSylvan.getTrue());
-                long c = JSylvan.ref(JSylvan.getTrue());
-                long d = JSylvan.ref(JSylvan.getTrue());
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    long a = JSylvan.ref(JSylvan.getTrue());
+                    long b = JSylvan.ref(JSylvan.getTrue());
+                    long c = JSylvan.ref(JSylvan.getTrue());
+                    long d = JSylvan.ref(JSylvan.getTrue());
 
-                long target = board[i][j];
+                    long target = board[i][j];
 
-                for (int l = 0; l < size; l++) {
-                    if (l == j) continue;
-                    long clause = impliesNoConflict(target, board[i][l]);
-                    a = andWith(a, clause);
-                }
-
-                for (int k = 0; k < size; k++) {
-                    if (k == i) continue;
-                    long clause = impliesNoConflict(target, board[k][j]);
-                    b = andWith(b, clause);
-                }
-
-                for (int k = 0; k < size; k++) {
-                    int ll = k - i + j;
-                    if (ll >= 0 && ll < size && k != i) {
-                        long clause = impliesNoConflict(target, board[k][ll]);
-                        c = andWith(c, clause);
+                    for (int l = 0; l < size; l++) {
+                        if (l == j) continue;
+                        long clause = impliesNoConflict(target, board[i][l]);
+                        a = andWith(a, clause);
                     }
-                }
 
-                for (int k = 0; k < size; k++) {
-                    int ll = i + j - k;
-                    if (ll >= 0 && ll < size && k != i) {
-                        long clause = impliesNoConflict(target, board[k][ll]);
-                        d = andWith(d, clause);
+                    for (int k = 0; k < size; k++) {
+                        if (k == i) continue;
+                        long clause = impliesNoConflict(target, board[k][j]);
+                        b = andWith(b, clause);
                     }
-                }
 
-                long cd = andWith(c, d);
-                long bc = andWith(b, cd);
-                long ab = andWith(a, bc);
-                queen = andWith(queen, ab);
+                    for (int k = 0; k < size; k++) {
+                        int ll = k - i + j;
+                        if (ll >= 0 && ll < size && k != i) {
+                            long clause = impliesNoConflict(target, board[k][ll]);
+                            c = andWith(c, clause);
+                        }
+                    }
+
+                    for (int k = 0; k < size; k++) {
+                        int ll = i + j - k;
+                        if (ll >= 0 && ll < size && k != i) {
+                            long clause = impliesNoConflict(target, board[k][ll]);
+                            d = andWith(d, clause);
+                        }
+                    }
+
+                    long cd = andWith(c, d);
+                    long bc = andWith(b, cd);
+                    long ab = andWith(a, bc);
+                    queen = andWith(queen, ab);
+                }
             }
         }
-
         int[] variables = new int[size * size];
         for (int i = 0; i < variables.length; i++) {
             variables[i] = i;

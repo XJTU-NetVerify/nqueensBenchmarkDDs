@@ -20,7 +20,16 @@ except ImportError as exc:
     raise SystemExit("matplotlib is required for plotting. Install it via `pip install matplotlib`.") from exc
 
 
-LINE_MARKERS = ["o", "+", "*", "s", "^", "v", "D", "x", "p", {"marker": "o", "markerfacecolor": "none"}]
+LINE_MARKERS = ["o", "+", "*", "s", "^", "v", "D", "x", "p",
+                {"marker": "o", "markerfacecolor": "none"}, ">", "<", "h", "d", "H"]
+NDD_COLORS = {
+    "NDD": "#D62728",
+    "NDD-BCDD": "#E66101",
+    "NDD-ZDD": "#C51B7D",
+    "NDD-original": "#7B3294",
+    "NDD-reuse": "#A63603",
+}
+OTHER_COLOR = "#A8BAC4"
 DEFAULT_MIN_SIZE = 8
 DEFAULT_MAX_SIZE = 13
 
@@ -60,6 +69,7 @@ def plot_line_metric(rows, metric, implementations):
     colors = get_implementation_colors(implementations)
     markers = get_implementation_markers(implementations)
     for impl in implementations:
+        is_ndd = impl.startswith("NDD")
         subset = sorted((r for r in rows if r["implementation"] == impl), key=lambda r: r["size"])
         marker_spec = markers[impl]
         marker_extra = marker_spec if isinstance(marker_spec, dict) else {"marker": marker_spec}
@@ -67,19 +77,24 @@ def plot_line_metric(rows, metric, implementations):
             **marker_extra,
             "label": impl,
             "color": colors[impl],
-            "linewidth": 1.8,
-            "markersize": 7,
-            "markeredgewidth": 1.4,
+            "linestyle": "-" if is_ndd else ":",
+            "linewidth": 2.0 if is_ndd else 1.6,
+            "zorder": 3 if is_ndd else 2,
+            "markersize": 9,
+            "markerfacecolor": "none",
+            "markeredgewidth": 1.3,
         }
         plt.plot([r["size"] for r in subset], [r[metric] for r in subset], **plot_kwargs)
 
 
 def get_implementation_colors(implementations):
-    color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    return {
-        impl: color_cycle[index % len(color_cycle)]
-        for index, impl in enumerate(implementations)
-    }
+    colors = {}
+    for impl in implementations:
+        if impl.startswith("NDD"):
+            colors[impl] = NDD_COLORS.get(impl, NDD_COLORS["NDD"])
+        else:
+            colors[impl] = OTHER_COLOR
+    return colors
 
 
 def plot_bar_metric(rows, metric, implementations, sizes):
@@ -142,7 +157,15 @@ def lighten_color(color, amount):
 
 
 def plot_metric(rows, metric, ylabel, output_dir, use_log_scale=False):
-    rows = [r for r in filter_rows(rows) if r[metric] is not None]
+    rows = [r for r in filter_rows(rows) if r[metric] is not None and r.get("status") != "error"]
+    plt.rcParams.update({
+        "font.size": 13,
+        "axes.titlesize": 17,
+        "axes.labelsize": 15,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "legend.fontsize": 12,
+    })
     plt.figure(figsize=(10, 5))
     implementations = sorted(set(r["implementation"] for r in rows))
     sizes = sorted(set(r["size"] for r in rows))
@@ -155,10 +178,11 @@ def plot_metric(rows, metric, ylabel, output_dir, use_log_scale=False):
         plt.yscale("log")
     plt.xlabel("Board size (N)")
     plt.ylabel(ylabel)
-    plt.title(f"N-Queens {ylabel}")
+    title = "N-Queens row construction" if rows and all(r.get("benchmark") == "rows" for r in rows) else "N-Queens"
+    plt.title(f"{title} {ylabel}")
     plt.grid(True, linestyle="--", alpha=0.4)
     if rows:
-        plt.legend()
+        plt.legend(ncol=2)
     else:
         plt.text(0.5, 0.5, "Metric unavailable from upstream APIs",
                  ha="center", va="center", transform=plt.gca().transAxes)
@@ -174,13 +198,9 @@ def plot_all_metrics(rows, output_dir):
     metrics = [
         ("time_sec", "Runtime (s)"),
         ("max_rss_kb", "Peak RSS (KB)"),
-        ("nodes_created", "Nodes created (total)"),
-        ("nodes_alive", "Nodes alive (final)"),
     ]
     for metric, ylabel in metrics:
-        plot_metric(rows, metric, ylabel, output_dir)
-        if metric in ("time_sec", "max_rss_kb"):
-            plot_metric(rows, metric, ylabel, output_dir, use_log_scale=True)
+        plot_metric(rows, metric, ylabel, output_dir, use_log_scale=True)
 
 
 def main():

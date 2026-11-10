@@ -29,6 +29,18 @@
 #include <iostream>
 #include "bdd.h"
 
+#include "../common/row_args.h"
+#define ROW_HANDLE bdd
+#define ROW_ONE() bddtrue
+#define ROW_ZERO() bddfalse
+#define ROW_FALSE bddfalse
+#define ROW_BRANCH(v, hi, lo) bdd_ite(bdd_ithvar(v), hi, lo)
+#define ROW_AND(a, b) ((a) & (b))
+#define ROW_OR(a, b) ((a) | (b))
+#define ROW_DROP(x) ((void)0)
+#include "../common/row_queens.h"
+
+
 int N;                /* Size of the chess board */
 bdd **X;              /* BDD variable array */
 bdd queen;            /* N-queen problem express as a BDD */
@@ -75,6 +87,7 @@ void build(int i, int j)
 
 int main(int ac, char **av)
 {
+   ac = row_args(ac, av);
    using namespace std ;
    int n,i,j;
 
@@ -106,26 +119,28 @@ int main(int ac, char **av)
       for (j=0 ; j<N ; j++)
 	 X[i][j] = bdd_ithvar(i*N+j);
 
-      /* Place a queen in each row */
-   for (i=0 ; i<N ; i++)
-   {
-      bdd e = bddfalse;
-      for (j=0 ; j<N ; j++)
-	 e |= X[i][j];
-      queen &= e;
-   }
-
-   const bool show_progress = getenv("BUDDY_NQUEENS_PROGRESS") != nullptr;
-
-      /* Build requirements for each variable(field) */
-   for (i=0 ; i<N ; i++)
-      for (j=0 ; j<N ; j++)
+   if (row_mode) queen = row_queens(N, NULL);
+    else {
+          /* Place a queen in each row */
+       for (i=0 ; i<N ; i++)
        {
-          if (show_progress)
-             cout << "Adding position " << i << "," << j << "\n" << flush;
-	  build(i,j);
+          bdd e = bddfalse;
+          for (j=0 ; j<N ; j++)
+         e |= X[i][j];
+          queen &= e;
        }
 
+       const bool show_progress = getenv("BUDDY_NQUEENS_PROGRESS") != nullptr;
+
+          /* Build requirements for each variable(field) */
+       for (i=0 ; i<N ; i++)
+          for (j=0 ; j<N ; j++)
+           {
+              if (show_progress)
+                 cout << "Adding position " << i << "," << j << "\n" << flush;
+          build(i,j);
+           }
+   }
       /* Print the results */
    const double solutions = bdd_satcount(queen);
    cout << "There are " << solutions << " solutions\n";

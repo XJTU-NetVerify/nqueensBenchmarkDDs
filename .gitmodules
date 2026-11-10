@@ -27,3 +27,9 @@
 [submodule "NDD-maintained"]
 	path = NDD
 	url = https://github.com/XJTU-NetVerify/NDD.git
+[submodule "JavaBDD"]
+	path = JavaBDD
+	url = https://github.com/com-github-javabdd/com.github.javabdd.git
+[submodule "oxidd"]
+	path = oxidd
+	url = https://github.com/oxidd/oxidd.git

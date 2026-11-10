@@ -14,6 +14,109 @@ from benchmarks import build
 
 
 class MetricsContractTests(unittest.TestCase):
+    def test_ndd_tuning_arguments(self):
+        with patch.object(sys, "argv", ["benchmark", "--benchmark", "rows",
+                "--ndd-cache-size", "1000000",
+                "--ndd-label-cache-size", "100000"]):
+            args = runner.parse_args()
+        self.assertEqual(args.ndd_cache_size, 1000000)
+        self.assertEqual(args.ndd_label_cache_size, 100000)
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and build.executable("NDD").is_file(),
+                         "Built maintained NDD adapter on Linux required")
+    def test_tuned_ndd_solution_counts(self):
+        for implementation in runner.build_implementations("rows"):
+            if implementation.name not in ("NDD", "NDD-BCDD", "NDD-ZDD"):
+                continue
+            for size in range(1, 9):
+                with self.subTest(implementation=implementation.name, size=size):
+                    command = implementation.command_for(size, 0)
+                    command[1:1] = ["-Dbenchmark.ndd.cacheSize=1000000",
+                                    "-Dbenchmark.ndd.labelCacheSize=100000"]
+                    output = subprocess.check_output(command, cwd=ROOT, text=True, timeout=30)
+                    self.assertEqual(runner.parse_metrics(output)["solutions"],
+                                     runner.EXPECTED_SOLUTIONS[size])
+
+    def test_row_commands_are_separate_from_original_benchmark(self):
+        original = runner.build_implementations()
+        rows = runner.build_implementations("rows")
+        self.assertEqual([impl.name for impl in original], [impl.name for impl in rows])
+        for pairwise, row in zip(original, rows):
+            self.assertEqual(row.command_for(8, 2), pairwise.command_for(8, 2) + ["--rows"])
+            self.assertNotIn("--rows", pairwise.command_for(8, 2))
+
+    def test_row_output_does_not_overwrite_original_results(self):
+        with patch.object(sys, "argv", ["benchmark", "--benchmark", "rows"]):
+            self.assertEqual(runner.parse_args().output, ROOT / "results/rows/nqueens_metrics.csv")
+        with patch.object(sys, "argv", ["benchmark"]):
+            self.assertEqual(runner.parse_args().output, ROOT / "results/nqueens_metrics.csv")
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and all(build.executable(name).is_file()
+        for name in ("buddy", "sylvan", "cudd", "oxidd", "jdd", "javabdd", "jsylvan",
+                     "decisiondiagrams", "NDD", "NDD-original", "NDD-reuse")),
+        "Build all adapters on Linux first")
+    def test_row_solution_counts_across_all_libraries(self):
+        for implementation in runner.build_implementations("rows"):
+            for size in range(1, 9):
+                with self.subTest(implementation=implementation.name, size=size):
+                    output = subprocess.check_output(implementation.command_for(size, 2),
+                                                     cwd=ROOT, text=True, timeout=30)
+                    metrics = runner.parse_metrics(output)
+                    self.assertEqual(metrics["size"], size)
+                    self.assertEqual(metrics["solutions"], runner.EXPECTED_SOLUTIONS[size])
+
+    def test_row_process_errors_have_no_solution_or_node_measurements(self):
+        implementation = runner.build_implementations("rows")[0]
+        result = dict(timed_out=False, returncode=1, elapsed=0.25, max_rss=512,
+                      stdout="", stderr="table full", cmd=["benchmark"])
+        with patch.object(runner, "execute_with_metrics", return_value=result):
+            row = runner.run_implementation(implementation, 8, 2, record_errors=True)
+        self.assertEqual(row["status"], "error")
+        self.assertIsNone(row["solutions"])
+        self.assertIsNone(row["nodes_alive"])
+        self.assertEqual(row["time_sec"], 0.25)
+
+    def test_oxidd_registration_and_provenance(self):
+        implementation = next(impl for impl in runner.build_implementations() if impl.name == "OxiDD")
+        self.assertIn("OxiDD", runner.get_default_targets())
+        self.assertEqual(implementation.command_for(8, 2)[-2:], ["8", "2"])
+        self.assertEqual(build.provenance("OxiDD")["upstream_revision"],
+                         build.LOCK["oxidd"]["revision"])
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and build.executable("oxidd").is_file(),
+                         "Built OxiDD adapter on Linux required")
+    def test_oxidd_solution_counts(self):
+        implementation = next(impl for impl in runner.build_implementations() if impl.name == "OxiDD")
+        for size, expected in enumerate([1, 0, 0, 2, 10, 4, 40, 92], start=1):
+            with self.subTest(size=size):
+                output = subprocess.check_output(implementation.command_for(size, 2), text=True, timeout=30)
+                metrics = runner.parse_metrics(output)
+                self.assertEqual(metrics["size"], size)
+                self.assertEqual(metrics["solutions"], expected)
+                self.assertIsNone(metrics["nodes_created"])
+                self.assertIsNotNone(metrics["nodes_alive"])
+
+    def test_javabdd_registration_and_provenance(self):
+        implementation = next(impl for impl in runner.build_implementations() if impl.name == "JavaBDD")
+        self.assertIn("JavaBDD", runner.get_default_targets())
+        self.assertEqual(implementation.command_for(8, 2)[-2:],
+                         ["benchmark.javabdd.JavaBDDQueens", "8"])
+        self.assertEqual(build.provenance("JavaBDD")["upstream_revision"],
+                         build.LOCK["JavaBDD"]["revision"])
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and build.executable("javabdd").is_file(),
+                         "Built JavaBDD adapter on Linux required")
+    def test_javabdd_solution_counts(self):
+        implementation = next(impl for impl in runner.build_implementations() if impl.name == "JavaBDD")
+        for size, expected in enumerate([1, 0, 0, 2, 10, 4, 40, 92], start=1):
+            with self.subTest(size=size):
+                output = subprocess.check_output(implementation.command_for(size, 2), text=True, timeout=30)
+                metrics = runner.parse_metrics(output)
+                self.assertEqual(metrics["size"], size)
+                self.assertEqual(metrics["solutions"], expected)
+                self.assertIsNone(metrics["nodes_created"])
+                self.assertIsNotNone(metrics["nodes_alive"])
+
     @unittest.skipUnless(sys.platform.startswith("linux") and Path("/usr/bin/time").is_file(), "GNU time required")
     def test_short_process_uses_kernel_peak_rss(self):
         result = runner.execute_with_metrics([sys.executable, "-c",

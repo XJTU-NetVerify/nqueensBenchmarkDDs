@@ -15,6 +15,14 @@
     "url": "https://bitbucket.org/vahidi/jdd.git",
     "revision": "781c64e6c79c53b804b7d957f84e57a3e93f0091"
   },
+  "JavaBDD": {
+    "url": "https://github.com/com-github-javabdd/com.github.javabdd.git",
+    "revision": "a939fc874e426f81233fa68a159cec901b0f0965"
+  },
+  "oxidd": {
+    "url": "https://github.com/oxidd/oxidd.git",
+    "revision": "4a68244fdb79bb678e3c7384c43fee82cbfa916c"
+  },
   "jsylvan": {
     "url": "https://github.com/utwente-fmt/jsylvan.git",
     "revision": "f97be81a63a7cc1207627841547aa10c82226d04"

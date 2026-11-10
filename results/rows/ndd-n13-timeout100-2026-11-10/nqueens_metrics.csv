@@ -1,0 +1,6 @@
+benchmark,implementation,upstream_url,upstream_revision,status,language,size,time_sec,solver_time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
+rows,NDD-original,https://github.com/XJTU-NetVerify/NDD.git,943476cb4df17d593b28ac7703c0a5d886df847a,timeout,Java,13,100,,5078176,,,,,,,
+rows,NDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,timeout,Java,13,100,,3201896,,,,,,,
+rows,NDD-BCDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,timeout,Java,13,100,,3082476,,,,,,,
+rows,NDD-ZDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,timeout,Java,13,100,,3754408,,,,,,,
+rows,NDD-reuse,https://github.com/XJTU-NetVerify/NDD.git,0a0811fce50d1d06669e90a7a9779b34dc1a6632,timeout,Java,13,100,,4883400,,,,,,,

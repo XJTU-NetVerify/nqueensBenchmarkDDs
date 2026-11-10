@@ -1,0 +1,14 @@
+{
+    "benchmark":  "pairwise",
+    "ndd_label_cache_size":  10000,
+    "sizes":  [
+                  13
+              ],
+    "targets":  [
+                    "NDD",
+                    "NDD-BCDD",
+                    "NDD-ZDD"
+                ],
+    "timeout_sec":  100,
+    "ndd_cache_size":  10000
+}

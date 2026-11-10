@@ -48,8 +48,9 @@ namespace DecisionDiagrams.Bench
         /// <summary>
         /// Run the benchmark.
         /// </summary>
-        public void Run()
+        public void Run(bool rows = false)
         {
+            if (rows) { RunRows(); return; }
             PlaceQueenInEachRow();
 
             for (int i = 0; i < this.boardSize; i++)
@@ -80,6 +81,29 @@ namespace DecisionDiagrams.Bench
         public DD GetProblemEncoding()
         {
             return this.problemEncoding;
+        }
+
+        // Adapted from SSoelvsten/bdd-benchmark, commit 3c521e1 (MIT).
+        private void RunRows()
+        {
+            for (int i = 0; i < boardSize; i++)
+            {
+                DD row = manager.False();
+                for (int j = 0; j < boardSize; j++)
+                {
+                    DD placement = manager.True();
+                    for (int v = boardSize * boardSize - 1; v >= 0; v--)
+                    {
+                        int r = v / boardSize, c = v % boardSize;
+                        if (r == i && c == j)
+                            placement = manager.Ite(boardConstraints[r, c], placement, manager.False());
+                        else if (r == i || c == j || Math.Abs(r - i) == Math.Abs(c - j))
+                            placement = manager.Ite(boardConstraints[r, c], manager.False(), placement);
+                    }
+                    row = manager.Or(row, placement);
+                }
+                problemEncoding = manager.And(problemEncoding, row);
+            }
         }
 
         /// <summary>

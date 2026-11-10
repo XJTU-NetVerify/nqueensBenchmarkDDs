@@ -1,0 +1,7 @@
+benchmark,implementation,upstream_url,upstream_revision,status,language,size,time_sec,solver_time_sec,max_rss_kb,nodes_created,nodes_alive,ndd_nodes_created,ndd_nodes_alive,bdd_nodes_created,bdd_nodes_alive,solutions
+rows,NDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,12,7.061013659000025,6.527735,842456,3906477,33970,1889744,33837,2016733,133,14200.0
+rows,NDD-BCDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,12,7.283871537999971,6.822441,858008,4425122,34331,1889901,33837,2535221,494,14200.0
+rows,NDD-ZDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,12,4.790954725000006,4.450645,880320,3234068,34006,1889744,33837,1344324,169,14200.0
+rows,NDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,13,30.88017418300001,29.042592,2999296,15802685,145868,8891135,145603,6911550,265,73712.0
+rows,NDD-BCDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,13,37.62719525700004,35.963683,3069248,17832421,146561,8891987,145603,8940434,958,73712.0
+rows,NDD-ZDD,https://github.com/XJTU-NetVerify/NDD.git,9c8eea1e086d84cc23e99eec1b240bb175714044,ok,Java,13,25.906111909999936,24.247667,3174496,13494516,145810,8891135,145603,4603381,207,73712.0

@@ -7,6 +7,18 @@
 #include <sylvan.h>
 #include <sylvan_stats.h>
 
+#include "../common/row_args.h"
+#define ROW_HANDLE BDD
+#define ROW_ONE() sylvan_ref(sylvan_true)
+#define ROW_ZERO() sylvan_ref(sylvan_false)
+#define ROW_FALSE sylvan_false
+#define ROW_BRANCH(v, hi, lo) sylvan_ref(sylvan_ite(sylvan_ithvar(v), hi, lo))
+#define ROW_AND(a, b) sylvan_ref(sylvan_and(a, b))
+#define ROW_OR(a, b) sylvan_ref(sylvan_or(a, b))
+#define ROW_DROP(x) sylvan_deref(x)
+#include "../common/row_queens.h"
+
+
 static int workers = 0;
 static size_t board_size = 0;
 
@@ -59,68 +71,73 @@ VOID_TASK_0(solve)
     BDD res = sylvan_true;
     sylvan_protect(&res);
 
-    // Each row must contain at least one queen
-    for (size_t i = 0; i < board_size; i++) {
-        BDD clause = sylvan_false;
-        sylvan_protect(&clause);
-        for (size_t j = 0; j < board_size; j++) {
-            clause = sylvan_or(clause, board[i*board_size + j]);
-        }
-        res = sylvan_and(res, clause);
-        sylvan_unprotect(&clause);
+    if (row_mode) {
+        res = row_queens((int)board_size, NULL);
+        sylvan_deref(res); // res is already protected by its stack address
     }
-
-    // Per-cell constraints (columns and both diagonals)
-    for (size_t i = 0; i < board_size; i++) {
-        for (size_t j = 0; j < board_size; j++) {
-            size_t idx = i*board_size + j;
-            BDD target = board[idx];
-
-            BDD a = sylvan_true;
-            BDD b = sylvan_true;
-            BDD c = sylvan_true;
-            BDD d = sylvan_true;
-            sylvan_protect(&a);
-            sylvan_protect(&b);
-            sylvan_protect(&c);
-            sylvan_protect(&d);
-
-            for (size_t col = 0; col < board_size; col++) {
-                if (col == j) continue;
-                a = sylvan_and(a, implies_not(target, board[i*board_size + col]));
+    else {
+        // Each row must contain at least one queen
+        for (size_t i = 0; i < board_size; i++) {
+            BDD clause = sylvan_false;
+            sylvan_protect(&clause);
+            for (size_t j = 0; j < board_size; j++) {
+                clause = sylvan_or(clause, board[i*board_size + j]);
             }
+            res = sylvan_and(res, clause);
+            sylvan_unprotect(&clause);
+        }
 
-            for (size_t row = 0; row < board_size; row++) {
-                if (row == i) continue;
-                b = sylvan_and(b, implies_not(target, board[row*board_size + j]));
+        // Per-cell constraints (columns and both diagonals)
+        for (size_t i = 0; i < board_size; i++) {
+            for (size_t j = 0; j < board_size; j++) {
+                size_t idx = i*board_size + j;
+                BDD target = board[idx];
+
+                BDD a = sylvan_true;
+                BDD b = sylvan_true;
+                BDD c = sylvan_true;
+                BDD d = sylvan_true;
+                sylvan_protect(&a);
+                sylvan_protect(&b);
+                sylvan_protect(&c);
+                sylvan_protect(&d);
+
+                for (size_t col = 0; col < board_size; col++) {
+                    if (col == j) continue;
+                    a = sylvan_and(a, implies_not(target, board[i*board_size + col]));
+                }
+
+                for (size_t row = 0; row < board_size; row++) {
+                    if (row == i) continue;
+                    b = sylvan_and(b, implies_not(target, board[row*board_size + j]));
+                }
+
+                for (size_t row = 0; row < board_size; row++) {
+                    size_t col = row - i + j;
+                    if (row == i || col >= board_size) continue;
+                    c = sylvan_and(c, implies_not(target, board[row*board_size + col]));
+                }
+
+                for (size_t row = 0; row < board_size; row++) {
+                    ssize_t col = (ssize_t)i + (ssize_t)j - (ssize_t)row;
+                    if (row == i || col < 0 || (size_t)col >= board_size) continue;
+                    d = sylvan_and(d, implies_not(target, board[row*board_size + (size_t)col]));
+                }
+
+                BDD local = sylvan_and(a, b);
+                sylvan_protect(&local);
+                local = sylvan_and(local, c);
+                local = sylvan_and(local, d);
+                res = sylvan_and(res, local);
+                sylvan_unprotect(&local);
+
+                sylvan_unprotect(&a);
+                sylvan_unprotect(&b);
+                sylvan_unprotect(&c);
+                sylvan_unprotect(&d);
             }
-
-            for (size_t row = 0; row < board_size; row++) {
-                size_t col = row - i + j;
-                if (row == i || col >= board_size) continue;
-                c = sylvan_and(c, implies_not(target, board[row*board_size + col]));
-            }
-
-            for (size_t row = 0; row < board_size; row++) {
-                ssize_t col = (ssize_t)i + (ssize_t)j - (ssize_t)row;
-                if (row == i || col < 0 || (size_t)col >= board_size) continue;
-                d = sylvan_and(d, implies_not(target, board[row*board_size + (size_t)col]));
-            }
-
-            BDD local = sylvan_and(a, b);
-            sylvan_protect(&local);
-            local = sylvan_and(local, c);
-            local = sylvan_and(local, d);
-            res = sylvan_and(res, local);
-            sylvan_unprotect(&local);
-
-            sylvan_unprotect(&a);
-            sylvan_unprotect(&b);
-            sylvan_unprotect(&c);
-            sylvan_unprotect(&d);
         }
     }
-
     // Build cube of variables for satcount
     BDD vars = sylvan_true;
     sylvan_protect(&vars);
@@ -150,6 +167,7 @@ VOID_TASK_0(solve)
 int
 main(int argc, char **argv)
 {
+    argc = row_args(argc, argv);
     parse_args(argc, argv);
 
     lace_start(workers, 1000000);

@@ -1,5 +1,6 @@
 package benchmark;
 
+import benchmark.common.RowQueens;
 import org.ants.jndd.diagram.NDD;
 
 public class NDDPrimitiveBenchmark {
@@ -37,6 +38,21 @@ public class NDDPrimitiveBenchmark {
             this.seconds = seconds;
             this.mode = mode;
         }
+    }
+
+    private static int solveRows(final int n) {
+        return RowQueens.solve(n, new RowQueens.Ops<Integer>() {
+            public Integer one() { return NDD.ref(NDD.getTrue()); }
+            public Integer zero() { return NDD.ref(NDD.getFalse()); }
+            public Integer step(int v, int value, Integer tail) {
+                if (value < 0) return NDD.ref(tail);
+                return NDD.ref(NDD.and(value == 1 ? NDD.getVar(v / n, v % n)
+                    : NDD.getNotVar(v / n, v % n), tail));
+            }
+            public Integer and(Integer a, Integer b) { return NDD.ref(NDD.and(a, b)); }
+            public Integer or(Integer a, Integer b) { return NDD.ref(NDD.or(a, b)); }
+            public void drop(Integer value) { NDD.deref(value); }
+        });
     }
 
     // declare n fields, n bits per field
@@ -104,44 +120,53 @@ public class NDDPrimitiveBenchmark {
     }
 
     // N is the number of queens, fieldNum is the number of fields in NDD library.
-    private static Result solve(int n, NDD.LabelMode mode) {
+    private static Result solve(int n, NDD.LabelMode mode) { return solve(n, mode, false); }
+
+    private static Result solve(int n, NDD.LabelMode mode, boolean rows) {
         long startTimeNanos = System.nanoTime();
         jdd.bdd.NodeTable.mkCount = 0;
 
         // init NDD library
-        NDD.initNDD(NDD_TABLE_SIZE, 1 + Math.max(1000, (int) (Math.pow(4.4, n - 6)) * 1000), 10000, mode);
+        int nddCacheSize = Integer.getInteger("benchmark.ndd.cacheSize", 10000);
+        int labelCacheSize = Integer.getInteger("benchmark.ndd.labelCacheSize", 10000);
+        if (nddCacheSize <= 0 || labelCacheSize <= 0) throw new IllegalArgumentException("Cache sizes must be positive");
+        NDD.initNDD(NDD_TABLE_SIZE, nddCacheSize,
+            1 + Math.max(1000, (int) (Math.pow(4.4, n - 6)) * 1000), labelCacheSize, mode);
 
         // declare ndd fields
         declareFields(n);
         NDD.generateFields();
 
-        int[] orBatch = new int[n];
-        int[][] impBatch = new int[n][n];
+        int queen;
+        if (rows) { queen = solveRows(n); } else {
+            int[] orBatch = new int[n];
+            int[][] impBatch = new int[n][n];
 
-        for (int i = 0; i < n; i++) {
-            int condition = NDD.getFalse();
-            for (int j = 0; j < n; j++) {
-                condition = NDD.orTo(condition, NDD.getVar(i, j));
+            for (int i = 0; i < n; i++) {
+                int condition = NDD.getFalse();
+                for (int j = 0; j < n; j++) {
+                    condition = NDD.orTo(condition, NDD.getVar(i, j));
+                }
+                orBatch[i] = condition;
             }
-            orBatch[i] = condition;
-        }
 
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                build(i, j, n, impBatch);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    build(i, j, n, impBatch);
+                }
             }
-        }
 
-        int queen = NDD.getTrue();
+            queen = NDD.getTrue();
 
-        for (int i = 0; i < n; i++) {
-            queen = NDD.andTo(queen, orBatch[i]);
-            NDD.deref(orBatch[i]);
-        }
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                queen = NDD.andTo(queen, impBatch[i][j]);
-                NDD.deref(impBatch[i][j]);
+            for (int i = 0; i < n; i++) {
+                queen = NDD.andTo(queen, orBatch[i]);
+                NDD.deref(orBatch[i]);
+            }
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    queen = NDD.andTo(queen, impBatch[i][j]);
+                    NDD.deref(impBatch[i][j]);
+                }
             }
         }
         double solutions = NDD.satCount(queen);
@@ -180,6 +205,8 @@ public class NDDPrimitiveBenchmark {
     }
 
     public static void main(String[] args) {
+        boolean rows = RowQueens.requested(args);
+        args = RowQueens.arguments(args);
         if (args.length == 0) {
             System.err.println("Usage: NDDSolution [--bcdd | --zdd] <N> [<N> ...]");
             System.exit(1);
@@ -203,7 +230,7 @@ public class NDDPrimitiveBenchmark {
         for (int i = startArg; i < args.length; i++) {
             String arg = args[i];
             int n = Integer.parseInt(arg);
-            printMetrics(n, solve(n, mode));
+            printMetrics(n, solve(n, mode, rows));
         }
     }
 

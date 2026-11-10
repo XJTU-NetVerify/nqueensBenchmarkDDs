@@ -1,5 +1,6 @@
 package benchmark.jdd;
 
+import benchmark.common.RowQueens;
 import jdd.bdd.*;
 import jdd.util.*;
 import jdd.util.math.*; // for Digits
@@ -26,7 +27,9 @@ public class BDDQueens extends BDD
 
     private int aliveNodeCount;
 
-    public BDDQueens(int N) {
+    public BDDQueens(int N) { this(N, false); }
+
+    public BDDQueens(int N, boolean rows) {
         // super(10000, N * N * 64);
         super(1+Math.max(1000, (int) (Math.pow(4.4, N-6))*1000), 10000);
 
@@ -42,22 +45,23 @@ public class BDDQueens extends BDD
             nbdds[i] = ref(not(bdds[i]));
         }
 
-        queen = 1;
+        if (rows) { queen = solveRows(N); } else {
+            queen = 1;
 
-        for (int i=0 ; i<N ; i++) {
-            int e = 0;
-            for(int j = 0; j < N; j++)
-                e = orTo(e, X(i,j) );
-            queen = andTo(queen, e);
-            deref(e);
-        }
-
-        for (int i=0 ; i<N ; i++)
-            for(int j = 0; j < N; j++) {
-                build(i,j);
-                // Test.check(nstack.getTOS() == 0, "in QUEENS: workset stack should be empty");
+            for (int i=0 ; i<N ; i++) {
+                int e = 0;
+                for(int j = 0; j < N; j++)
+                    e = orTo(e, X(i,j) );
+                queen = andTo(queen, e);
+                deref(e);
             }
 
+            for (int i=0 ; i<N ; i++)
+                for(int j = 0; j < N; j++) {
+                    build(i,j);
+                    // Test.check(nstack.getTOS() == 0, "in QUEENS: workset stack should be empty");
+                }
+        }
         sols = satCount(queen);
         aliveNodeCount = nodeCount(queen);
         time = System.currentTimeMillis()  -time;
@@ -71,6 +75,20 @@ public class BDDQueens extends BDD
         if(Options.verbose) showStats();
 
         cleanup();
+    }
+
+    private int solveRows(int n) {
+
+        return RowQueens.solve(n, new RowQueens.Ops<Integer>() {
+            public Integer one() { return ref(1); }
+            public Integer zero() { return ref(0); }
+            public Integer step(int v, int value, Integer tail) {
+                return value < 0 ? ref(tail) : ref(ite(bdds[v], value == 1 ? tail : 0, value == 0 ? tail : 0));
+            }
+            public Integer and(Integer a, Integer b) { return ref(BDDQueens.this.and(a, b)); }
+            public Integer or(Integer a, Integer b) { return ref(BDDQueens.this.or(a, b)); }
+            public void drop(Integer value) { deref(value); }
+        });
     }
 
     private void build(int i, int j) {
@@ -148,9 +166,9 @@ public class BDDQueens extends BDD
     // -------------------------------------------
     public static void main(String [] args) {
         // Options.verbose = true;
-        for(String str :args) {
+        for(String str :RowQueens.arguments(args)) {
             final int n = Integer.parseInt(str );
-            BDDQueens q = new BDDQueens( n );
+            BDDQueens q = new BDDQueens(n, RowQueens.requested(args));
             // q.showOneSolution();
 
             JDDConsole.out.printf("BDD-Queen\tSolutions=%.0f\tN=%d\tmem=%s\ttime=%d\n",

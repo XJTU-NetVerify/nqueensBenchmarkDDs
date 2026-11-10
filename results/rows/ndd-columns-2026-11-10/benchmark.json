@@ -1,0 +1,25 @@
+{
+  "benchmark": "rows",
+  "upstream_url": "https://github.com/SSoelvsten/bdd-benchmark",
+  "upstream_revision": "3c521e16ada406d37ae5f960096a567a41df33b9",
+  "upstream_source": "src/queens.cpp",
+  "license": "MIT",
+  "variable_order": "NDD: column-major fields, row-major construction; other targets: row-major",
+  "construction": "Build each queen-placement cube in reverse variable order, union placements within each row, then intersect rows.",
+  "sizes": [
+    8,
+    10,
+    12,
+    13
+  ],
+  "workers": 0,
+  "timeout_sec": 100,
+  "ndd_field_grouping": "columns",
+  "targets": [
+    "NDD",
+    "NDD-BCDD",
+    "NDD-ZDD",
+    "NDD-original",
+    "NDD-reuse"
+  ]
+}

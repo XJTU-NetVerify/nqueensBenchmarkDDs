@@ -1,4 +1,4 @@
-// <copyright file="Program.cs" company="Microsoft">
+﻿// <copyright file="Program.cs" company="Microsoft">
 // Copyright (c) Microsoft. All rights reserved.
 // </copyright>
 
@@ -18,6 +18,8 @@ namespace DecisionDiagrams.Bench
         /// <param name="args">Command line arguments.</param>
         static void Main(string[] args)
         {
+            bool rows = Array.Exists(args, arg => arg == "--rows");
+            args = Array.FindAll(args, arg => arg != "--rows");
             if (args.Length < 1)
             {
                 Console.Error.WriteLine("Usage: DecisionDiagrams.Bench <board_size> [--use-bdd]");
@@ -29,20 +31,20 @@ namespace DecisionDiagrams.Bench
 
             if (useBDD)
             {
-                RunBenchmark<BDDNode>(boardSize, "BDD");
+                RunBenchmark<BDDNode>(boardSize, "BDD", rows);
             }
             else
             {
-                RunBenchmark<CBDDNode>(boardSize, "CBDD");
+                RunBenchmark<CBDDNode>(boardSize, "CBDD", rows);
             }
         }
 
-        static void RunBenchmark<T>(int boardSize, string nodeType) where T : IDDNode, IEquatable<T>
+        static void RunBenchmark<T>(int boardSize, string nodeType, bool rows) where T : IDDNode, IEquatable<T>
         {
             var manager = new DDManager<T>();
             var q = new Queens<T>(manager, boardSize);
 
-            q.Run();
+            q.Run(rows);
 
             var encoding = q.GetProblemEncoding();
             double solutions = manager.SatCount(encoding);

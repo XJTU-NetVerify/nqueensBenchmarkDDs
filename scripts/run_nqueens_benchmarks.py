@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import json
 import os
 import shutil
 import shlex
@@ -20,6 +21,7 @@ JOBS = max(1, os.cpu_count() or 1)
 DEFAULT_SIZES = list(range(8, 14))
 DEFAULT_TIMEOUT_SEC = 500
 JSYLVAN_MEMORY_MB = 2048
+EXPECTED_SOLUTIONS = dict(enumerate([1, 0, 0, 2, 10, 4, 40, 92, 352, 724, 2680, 14200, 73712], start=1))
 sys.path.insert(0, str(ROOT))
 from benchmarks import build as adapters
 
@@ -67,8 +69,16 @@ def ensure_cudd():
     adapters.prepare("cudd", run, JOBS)
 
 
+def ensure_oxidd():
+    adapters.prepare("oxidd", run, JOBS)
+
+
 def ensure_jdd():
     adapters.prepare("jdd", run, JOBS)
+
+
+def ensure_javabdd():
+    adapters.prepare("javabdd", run, JOBS)
 
 
 def ensure_jsylvan():
@@ -216,19 +226,23 @@ def parse_metrics(stdout):
     }
 
 
-def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC):
+def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC, record_errors=False):
     cmd = impl.command_for(size, workers)
     env = impl.base_env()
     result = execute_with_metrics(cmd, cwd=impl.workdir, env=env, timeout_sec=timeout_sec)
-    if result["timed_out"]:
-        print(f"[timeout] {impl.name:10s} N={size:2d} time={timeout_sec:7.3f}s rss={result['max_rss']:>8d}KB")
+    if result["timed_out"] or (record_errors and result["returncode"] != 0):
+        status = "timeout" if result["timed_out"] else "error"
+        duration = timeout_sec if result["timed_out"] else result["elapsed"]
+        print(f"[{status}] {impl.name:10s} N={size:2d} time={duration:7.3f}s rss={result['max_rss']:>8d}KB")
+        if status == "error":
+            print(result["stderr"], file=sys.stderr)
         return {
             **adapters.provenance(impl.name),
-            "status": "timeout",
+            "status": status,
             "implementation": impl.name,
             "language": impl.language,
             "size": size,
-            "time_sec": timeout_sec,
+            "time_sec": duration,
             "solver_time_sec": None,
             "max_rss_kb": result["max_rss"],
             "nodes_created": TIMEOUT_SENTINEL_METRICS["nodes_created"],
@@ -249,6 +263,8 @@ def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC):
     metrics = parse_metrics(result["stdout"])
     if metrics["size"] != size:
         raise RuntimeError(f"Implementation {impl.name} reported size {metrics['size']} but expected {size}")
+    if size in EXPECTED_SOLUTIONS and metrics["solutions"] != EXPECTED_SOLUTIONS[size]:
+        raise RuntimeError(f"{impl.name} N={size}: expected {EXPECTED_SOLUTIONS[size]} solutions, got {metrics['solutions']}")
     time_sec = result["elapsed"]
     max_rss = result["max_rss"]
     print(f"[run] {impl.name:10s} N={size:2d} time={time_sec:7.3f}s rss={max_rss:>8d}KB "
@@ -277,6 +293,7 @@ def run_implementation(impl, size, workers, timeout_sec=DEFAULT_TIMEOUT_SEC):
 def write_results(rows, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
+        "benchmark",
         "implementation",
         "upstream_url",
         "upstream_revision",
@@ -328,6 +345,12 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Run N-Queens benchmarks across multiple BDD implementations.",
     )
+    parser.add_argument("--benchmark", choices=("pairwise", "rows"), default="pairwise",
+                        help="N-Queens construction: original pairwise constraints or external-suite row construction")
+    parser.add_argument("--ndd-cache-size", type=int, default=10000,
+                        help="Maintained NDD operation cache entries (default: 10000)")
+    parser.add_argument("--ndd-label-cache-size", type=int, default=10000,
+                        help="Maintained NDD label operation cache entries (default: 10000)")
     parser.add_argument(
         "--sizes",
         nargs="+",
@@ -339,7 +362,7 @@ def parse_args():
         "--workers",
         type=int,
         default=0,
-        help="Worker threads for Sylvan-based implementations (0 = autodetect, default: 0)",
+        help="Worker threads for Sylvan-based implementations and OxiDD (0 = autodetect, default: 0)",
     )
     parser.add_argument(
         "--timeout",
@@ -350,8 +373,8 @@ def parse_args():
     parser.add_argument(
         "--output",
         type=Path,
-        default=RESULTS_DIR / "nqueens_metrics.csv",
-        help="Output CSV path (default: results/nqueens_metrics.csv)",
+        default=None,
+        help="CSV path (default: results/nqueens_metrics.csv, or results/rows/nqueens_metrics.csv for --benchmark rows)",
     )
     parser.add_argument(
         "--targets",
@@ -364,23 +387,35 @@ def parse_args():
         action="store_true",
         help="Run existing build artifacts without rebuilding implementations",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.ndd_cache_size <= 0 or args.ndd_label_cache_size <= 0:
+        parser.error("NDD cache sizes must be positive")
+    if args.output is None:
+        args.output = RESULTS_DIR / ("rows/nqueens_metrics.csv" if args.benchmark == "rows" else "nqueens_metrics.csv")
+    return args
 
 
-def build_implementations():
+def build_implementations(benchmark="pairwise"):
+    if benchmark not in ("pairwise", "rows"):
+        raise ValueError(f"Unknown benchmark: {benchmark}")
     def ndd(name, prepare, mode=None, source="NDD"):
         return Implementation(name, "Java", prepare,
                               lambda size, _: adapters.ndd_command(source, size, mode))
 
-    return [
+    implementations = [
         Implementation("BuDDy", "C", ensure_buddy,
                        lambda size, _: [str(adapters.executable("buddy")), str(size)]),
         Implementation("Sylvan", "C", ensure_sylvan,
                        lambda size, workers: [str(adapters.executable("sylvan")), "-w", str(workers), str(size)]),
         Implementation("CUDD", "C", ensure_cudd,
                        lambda size, _: [str(adapters.executable("cudd")), str(size)]),
+        Implementation("OxiDD", "Rust", ensure_oxidd,
+                       lambda size, workers: [str(adapters.executable("oxidd")), str(size), str(workers)]),
         Implementation("JDD", "Java", ensure_jdd,
                        lambda size, _: ["java", "-cp", str(adapters.BUILD / "jdd/classes"), "benchmark.jdd.BDDQueens", str(size)]),
+        Implementation("JavaBDD", "Java", ensure_javabdd,
+                       lambda size, _: ["java", "-cp", str(adapters.BUILD / "javabdd/classes"),
+                                        "benchmark.javabdd.JavaBDDQueens", str(size)]),
         Implementation("ZDD", "Java", ensure_jdd,
                        lambda size, _: ["java", "-cp", str(adapters.BUILD / "jdd/classes"), "benchmark.jdd.ZDDQueens", str(size)]),
         Implementation("JSylvan", "Java", ensure_jsylvan,
@@ -397,6 +432,11 @@ def build_implementations():
         ndd("NDD-ZDD", ensure_ndd, "--zdd"),
         ndd("NDD-reuse", ensure_ndd_reuse, source="NDD-reuse"),
     ]
+    if benchmark == "rows":
+        for impl in implementations:
+            builder = impl.command_builder
+            impl.command_builder = lambda size, workers, builder=builder: [*builder(size, workers), "--rows"]
+    return implementations
 
 
 def get_default_targets():
@@ -405,7 +445,14 @@ def get_default_targets():
 
 def main():
     args = parse_args()
-    available_impls = build_implementations()
+    available_impls = build_implementations(args.benchmark)
+    for impl in available_impls:
+        if impl.name in ("NDD", "NDD-BCDD", "NDD-ZDD"):
+            builder = impl.command_builder
+            impl.command_builder = lambda size, workers, builder=builder: [
+                "java", f"-Dbenchmark.ndd.cacheSize={args.ndd_cache_size}",
+                f"-Dbenchmark.ndd.labelCacheSize={args.ndd_label_cache_size}",
+                *builder(size, workers)[1:]]
     impl_map = {impl.name.lower(): impl for impl in available_impls}
     requested = [t.lower() for t in args.targets]
     if requested == ["all"]:
@@ -440,11 +487,21 @@ def main():
         adapters.source(name)
 
     rows = []
+    if args.benchmark == "rows":
+        metadata = json.loads((ROOT / "benchmarks/common/row-construction.json").read_text())
+        metadata.update(sizes=args.sizes, workers=args.workers, timeout_sec=args.timeout,
+                        ndd_cache_size=args.ndd_cache_size, ndd_label_cache_size=args.ndd_label_cache_size,
+                        targets=[impl.name for impl in selected_impls])
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        (args.output.parent / "benchmark.json").write_text(json.dumps(metadata, indent=2) + "\n")
     for size in args.sizes:
         for impl in selected_impls:
-            rows.append(run_implementation(impl, size, args.workers, timeout_sec=args.timeout))
+            result = run_implementation(impl, size, args.workers, timeout_sec=args.timeout,
+                                        record_errors=args.benchmark == "rows")
+            rows.append({"benchmark": args.benchmark, **result})
+        # Preserve completed sizes if a later run fails or is interrupted.
+        write_results(rows, args.output)
 
-    write_results(rows, args.output)
     plot_results(args.output)
 
 
